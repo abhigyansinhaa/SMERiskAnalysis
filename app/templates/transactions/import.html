@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Import CSV - Cashflow Risk Advisor{% endblock %}
+{% block content %}
+<h1>Import Transactions from CSV</h1>
+<p class="muted">Expected columns: date, amount, type (income/expense), category, merchant, notes. Amount can be signed (positive=income, negative=expense).</p>
+<form method="post" enctype="multipart/form-data">
+    <label>CSV File</label>
+    <input type="file" name="file" accept=".csv" required>
+    <button type="submit">Import</button>
+</form>
+<p><a href="{{ url_for('transactions.list_transactions') }}">Back to Transactions</a></p>
+{% endblock %}

@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}Forecast - Cashflow Risk Advisor{% endblock %}
+{% block content %}
+<h1>Forecast & What-If</h1>
+
+<div class="forecast-section">
+    <h2>Baseline Forecast</h2>
+    <button id="run-forecast">Run Forecast (30 days)</button>
+    <div id="forecast-result" class="result-box"></div>
+</div>
+
+<div class="whatif-section">
+    <h2>What-If Scenario</h2>
+    <div class="whatif-inputs">
+        <label>Sales change (%): <input type="number" id="sales-pct" step="0.01" value="0" placeholder="-20 for -20%"></label>
+        <label>Rent change: <input type="number" id="rent-change" step="0.01" value="0" placeholder="+500"></label>
+        <label>One-time expense: <input type="number" id="one-time" step="0.01" value="0"></label>
+    </div>
+    <button id="run-whatif">Apply What-If</button>
+    <div id="whatif-result" class="result-box"></div>
+</div>
+
+<div id="forecast-chart" class="chart-placeholder"></div>
+{% endblock %}
+{% block scripts %}
+<script>
+document.getElementById('run-forecast').onclick = async () => {
+    const el = document.getElementById('forecast-result');
+    el.textContent = 'Running...';
+    try {
+        const r = await fetch('/forecast/run', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ horizon_days: 30 })
+        });
+        const d = await r.json();
+        if (d.error) throw new Error(d.error);
+        el.innerHTML = `
+            <p><strong>Predicted net (30d):</strong> ${d.predicted_net.toFixed(2)}</p>
+            <p><strong>Predicted balance:</strong> ${d.predicted_balance.toFixed(2)}</p>
+            <p class="muted">MAE: ${d.metrics?.mae != null ? d.metrics.mae.toFixed(2) : 'N/A'} | RMSE: ${d.metrics?.rmse != null ? d.metrics.rmse.toFixed(2) : 'N/A'}</p>
+        `;
+    } catch (e) {
+        el.textContent = 'Error: ' + e.message;
+    }
+};
+
+document.getElementById('run-whatif').onclick = async () => {
+    const el = document.getElementById('whatif-result');
+    el.textContent = 'Running...';
+    const sales = parseFloat(document.getElementById('sales-pct').value) / 100 || 0;
+    const rent = parseFloat(document.getElementById('rent-change').value) || 0;
+    const one = parseFloat(document.getElementById('one-time').value) || 0;
+    try {
+        const r = await fetch('/forecast/whatif', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                sales_pct_change: sales,
+                rent_change: rent,
+                one_time_expense: one
+            })
+        });
+        const d = await r.json();
+        if (d.error) throw new Error(d.error);
+        const b = d.baseline || {};
+        el.innerHTML = `
+            <p><strong>Baseline net:</strong> ${b.predicted_net != null ? b.predicted_net.toFixed(2) : 'N/A'}</p>
+            <p><strong>Adjusted net:</strong> ${d.adjusted_net.toFixed(2)}</p>
+            <p><strong>Adjusted balance:</strong> ${d.adjusted_balance.toFixed(2)}</p>
+        `;
+    } catch (e) {
+        el.textContent = 'Error: ' + e.message;
+    }
+};
+</script>
+{% endblock %}

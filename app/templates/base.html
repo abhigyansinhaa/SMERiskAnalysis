@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Cashflow Risk Advisor{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    {% if current_user.is_authenticated %}
+    <nav class="navbar">
+        <a href="{{ url_for('analytics.dashboard') }}" class="brand">Cashflow Advisor</a>
+        <div class="nav-links">
+            <a href="{{ url_for('analytics.dashboard') }}">Dashboard</a>
+            <a href="{{ url_for('transactions.list_transactions') }}">Transactions</a>
+            <a href="{{ url_for('analytics.forecast') }}">Forecast</a>
+            <a href="{{ url_for('advisor.index') }}">Advisor</a>
+            <a href="{{ url_for('auth.logout') }}">Logout</a>
+        </div>
+    </nav>
+    {% endif %}
+
+    <main class="container">
+        {% block content %}{% endblock %}
+    </main>
+
+    {% block scripts %}{% endblock %}
+</body>
+</html>

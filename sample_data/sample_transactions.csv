@@ -1,0 +1,16 @@
+date,amount,type,category,merchant,notes
+2025-02-01,5000,income,Sales,Acme Corp,Invoice #101
+2025-02-05,1200,expense,Rent,Landlord,Monthly rent
+2025-02-08,3500,income,Sales,Beta Inc,Contract payment
+2025-02-10,200,expense,Utilities,Electric Co,Power bill
+2025-02-12,800,expense,Supplies,Office Depot,Stationery
+2025-02-15,4200,income,Sales,Gamma LLC,Q1 retainer
+2025-02-18,1200,expense,Rent,Landlord,Monthly rent
+2025-02-20,150,expense,Utilities,Water,Water bill
+2025-02-22,2800,income,Sales,Delta Co,Project fee
+2025-02-25,2500,expense,Payroll,Staff,Salaries
+2025-02-28,600,expense,Marketing,Ad Agency,Facebook ads
+2025-03-01,4500,income,Sales,Acme Corp,Invoice #102
+2025-03-05,1200,expense,Rent,Landlord,Monthly rent
+2025-03-08,1800,income,Sales,New Client,Consulting
+2025-03-10,220,expense,Utilities,Electric Co,Power bill

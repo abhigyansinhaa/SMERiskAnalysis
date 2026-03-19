@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Edit' if transaction else 'Add' }} Transaction - Cashflow Risk Advisor{% endblock %}
+{% block content %}
+<h1>{{ 'Edit' if transaction else 'Add' }} Transaction</h1>
+<form method="post">
+    <label>Date</label>
+    <input type="date" name="date" value="{{ transaction.date.strftime('%Y-%m-%d') if transaction else '' }}" required>
+    <label>Amount</label>
+    <input type="number" name="amount" step="0.01" value="{{ transaction.amount if transaction else '' }}" required>
+    <label>Type</label>
+    <select name="type">
+        <option value="income" {{ 'selected' if transaction and transaction.type=='income' else '' }}>Income</option>
+        <option value="expense" {{ 'selected' if not transaction or transaction.type=='expense' }}>Expense</option>
+    </select>
+    <label>Category</label>
+    <select name="category_id">
+        <option value="">—</option>
+        {% for c in categories %}
+        <option value="{{ c.id }}" {{ 'selected' if transaction and transaction.category_id==c.id else '' }}>{{ c.name }} ({{ c.type }})</option>
+        {% endfor %}
+    </select>
+    <label>Merchant</label>
+    <input type="text" name="merchant" value="{{ transaction.merchant if transaction else '' }}">
+    <label>Notes</label>
+    <textarea name="notes">{{ transaction.notes if transaction else '' }}</textarea>
+    <button type="submit">Save</button>
+    <a href="{{ url_for('transactions.list_transactions') }}">Cancel</a>
+</form>
+{% endblock %}

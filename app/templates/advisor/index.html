@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Advisor - Cashflow Risk Advisor{% endblock %}
+{% block content %}
+<h1>Advisor</h1>
+<p>Executive summary and recommended actions based on your cashflow data. All numbers are grounded in your stored transactions and computed metrics.</p>
+<button id="generate-summary">Generate Summary</button>
+<div id="summary-output" class="summary-box">
+    <p class="muted">Click "Generate Summary" to get an executive summary and recommended actions.</p>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+document.getElementById('generate-summary').onclick = async () => {
+    const el = document.getElementById('summary-output');
+    el.innerHTML = '<p>Generating...</p>';
+    try {
+        const r = await fetch('/advisor/summary', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        const d = await r.json();
+        if (d.error) throw new Error(d.error);
+        let html = '<h3>Executive Summary</h3><p>' + (d.summary || 'No summary generated.') + '</p>';
+        if (d.actions && d.actions.length) {
+            html += '<h3>Recommended Actions</h3><ul>';
+            d.actions.forEach(a => { html += '<li>' + a + '</li>'; });
+            html += '</ul>';
+        }
+        el.innerHTML = html;
+    } catch (e) {
+        el.innerHTML = '<p class="error">Error: ' + e.message + '</p>';
+    }
+};
+</script>
+{% endblock %}
