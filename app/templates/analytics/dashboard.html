@@ -2,6 +2,10 @@
 {% block title %}Dashboard - Cashflow Risk Advisor{% endblock %}
 {% block content %}
 <h1>Dashboard</h1>
+{% if period_note %}
+<p class="muted period-note">{{ period_note }}</p>
+<p class="muted">Monthly KPIs use the <strong>latest month with transactions</strong> when the current calendar month has no activity (common with demo/historical CSV dates).</p>
+{% endif %}
 <div class="kpi-grid">
     <div class="kpi-card">
         <span class="kpi-label">Monthly Income</span>
@@ -20,8 +24,9 @@
         <span class="kpi-value">{{ "%.2f"|format(balance) }}</span>
     </div>
     <div class="kpi-card">
-        <span class="kpi-label">Burn Rate (30d)</span>
+        <span class="kpi-label">Burn Rate (30d avg)</span>
         <span class="kpi-value">{{ "%.2f"|format(burn_rate) }}/day</span>
+        <span class="kpi-hint muted">Trailing expenses; uses latest data if none in last 30 days.</span>
     </div>
     <div class="kpi-card">
         <span class="kpi-label">Runway</span>
@@ -45,7 +50,7 @@
 </div>
 
 <div class="charts-section">
-    <h2>Category Breakdown (this month)</h2>
+    <h2>Category Breakdown ({{ '%04d-%02d'|format(dashboard_year, dashboard_month) }})</h2>
     {% if categories %}
     <table class="data-table">
         <thead>
@@ -67,7 +72,7 @@
 </div>
 
 <div class="vendors-section">
-    <h2>Top Vendors (this month)</h2>
+    <h2>Top Vendors ({{ '%04d-%02d'|format(dashboard_year, dashboard_month) }})</h2>
     {% if vendors %}
     <ul>
         {% for v in vendors %}

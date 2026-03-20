@@ -1,10 +1,10 @@
 """Transactions CRUD and CSV import routes."""
 import csv
 import io
+from calendar import monthrange
 from datetime import datetime
-from decimal import Decimal
 
-from flask import redirect, render_template, request, url_for, flash, jsonify
+from flask import redirect, render_template, request, url_for, flash
 from flask_login import login_required, current_user
 
 from app import db
@@ -44,8 +44,6 @@ def list_transactions():
     if month:
         try:
             start = datetime.strptime(month + "-01", "%Y-%m-%d").date()
-            from datetime import timedelta
-            from calendar import monthrange
             _, last = monthrange(start.year, start.month)
             end = start.replace(day=last)
             q = q.filter(Transaction.date >= start, Transaction.date <= end)
@@ -164,7 +162,6 @@ def import_csv():
 
     # Support formats: date,amount,type,category,merchant,notes
     # Or: date,description,amount (amount sign = income/expense)
-    required = ["date", "amount"]
     created = 0
     errors = []
 

@@ -153,6 +153,8 @@ body {
 
 .kpi-label { display: block; color: var(--muted); font-size: 0.875rem; }
 .kpi-value { font-size: 1.5rem; font-weight: 600; }
+.kpi-hint { display: block; font-size: 0.75rem; margin-top: 0.35rem; }
+.period-note { margin-bottom: 0; }
 
 .filters { margin: 1rem 0; display: flex; gap: 0.5rem; align-items: center; }
 .filters select, .filters input { padding: 0.5rem; background: var(--surface); border: 1px solid var(--border); color: var(--text); border-radius: 4px; }

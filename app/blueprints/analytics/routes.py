@@ -1,11 +1,10 @@
 """Dashboard and analytics routes."""
-from datetime import date
-
 from flask import render_template
 from flask_login import login_required, current_user
 
 from app.blueprints.analytics import analytics_bp
 from app.services.analytics import (
+    get_dashboard_month,
     get_monthly_totals,
     get_category_breakdown,
     get_top_vendors,
@@ -21,10 +20,10 @@ from app.services.analytics import (
 @login_required
 def dashboard():
     """Dashboard with KPIs, charts, and alerts."""
-    today = date.today()
-    totals = get_monthly_totals(current_user.id, today.year, today.month)
-    categories = get_category_breakdown(current_user.id, today.year, today.month)
-    vendors = get_top_vendors(current_user.id, today.year, today.month)
+    y, m, period_note = get_dashboard_month(current_user.id)
+    totals = get_monthly_totals(current_user.id, y, m)
+    categories = get_category_breakdown(current_user.id, y, m)
+    vendors = get_top_vendors(current_user.id, y, m)
     balance = get_current_balance(current_user.id)
     burn = get_burn_rate(current_user.id, 30)
     runway = compute_runway(current_user.id, balance, burn)
@@ -40,6 +39,9 @@ def dashboard():
         burn_rate=burn,
         runway=runway,
         alerts=alerts,
+        dashboard_year=y,
+        dashboard_month=m,
+        period_note=period_note,
     )
 
 

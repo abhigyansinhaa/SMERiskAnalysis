@@ -1,6 +1,7 @@
 """Application configuration."""
 import os
 from pathlib import Path
+from urllib.parse import quote_plus
 
 from dotenv import load_dotenv
 
@@ -24,9 +25,13 @@ class Config:
 
     @property
     def SQLALCHEMY_DATABASE_URI(self) -> str:
+        # URL-encode credentials to safely handle special chars like '@' in passwords.
+        user = quote_plus(self.MYSQL_USER)
+        password = quote_plus(self.MYSQL_PASSWORD)
+        database = quote_plus(self.MYSQL_DATABASE)
         return (
-            f"mysql+pymysql://{self.MYSQL_USER}:{self.MYSQL_PASSWORD}"
-            f"@{self.MYSQL_HOST}:{self.MYSQL_PORT}/{self.MYSQL_DATABASE}"
+            f"mysql+pymysql://{user}:{password}"
+            f"@{self.MYSQL_HOST}:{self.MYSQL_PORT}/{database}"
         )
 
     SQLALCHEMY_TRACK_MODIFICATIONS = False

@@ -23,8 +23,9 @@ python scripts/seed_sample.py
 - Login: `demo@example.com` / `demo123` (or register a new user)
 
 ### 2. Import CSV
+- Regenerate dates from **today** (recommended): `python sample_data/build_harborline_dataset.py`
 - Go to **Transactions** → **Import CSV**
-- Upload `sample_data/sample_transactions.csv`
+- Upload **`sample_data/harborline_supply_transactions.csv`** (realistic SME — tests all features) or `sample_data/sample_transactions.csv` (short smoke test)
 - Confirm import count
 
 ### 3. Dashboard

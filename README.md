@@ -23,7 +23,7 @@ Flask + MySQL web app for SMEs to track income/expenses, forecast cashflow with 
 ## Demo
 
 - Login: `demo@example.com` / `demo123`
-- Import `sample_data/sample_transactions.csv`
+- Run `python sample_data/build_harborline_dataset.py` then import **`sample_data/harborline_supply_transactions.csv`** (dates align with today; recommended) or `sample_data/sample_transactions.csv` (minimal)
 - See `DEMO_SCRIPT.md` for full demo flow
 
 ## Tech Stack

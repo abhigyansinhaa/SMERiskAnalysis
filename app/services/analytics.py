@@ -7,6 +7,29 @@ from app import db
 from app.models import Transaction, Alert, Category
 
 
+def get_dashboard_month(user_id: int) -> tuple[int, int, str]:
+    """
+    Calendar month for dashboard KPIs.
+
+    Uses *today's* month if it has any income or expense; otherwise uses the
+    month of the latest transaction (so imported historical CSVs still show
+    meaningful monthly numbers when your PC date is past that data).
+    """
+    today = date.today()
+    cur = get_monthly_totals(user_id, today.year, today.month)
+    if cur["income"] > 0 or cur["expense"] > 0:
+        return today.year, today.month, ""
+
+    latest = (
+        db.session.query(func.max(Transaction.date)).filter(Transaction.user_id == user_id).scalar()
+    )
+    if latest:
+        cal = __import__("calendar")
+        label = cal.month_abbr[latest.month] + f" {latest.year} (latest activity; not {cal.month_abbr[today.month]} {today.year})"
+        return latest.year, latest.month, label
+    return today.year, today.month, ""
+
+
 def get_monthly_totals(user_id: int, year: int, month: int) -> dict:
     """Income, expense, net for a given month."""
     start = date(year, month, 1)
@@ -86,7 +109,7 @@ def get_top_vendors(user_id: int, year: int, month: int, limit: int = 10) -> lis
 
 
 def get_burn_rate(user_id: int, days: int = 30) -> float:
-    """Average daily expense over last N days."""
+    """Average daily expense over last N days (calendar window ending today)."""
     end = date.today()
     start = end - timedelta(days=days)
     total = (
@@ -100,7 +123,31 @@ def get_burn_rate(user_id: int, days: int = 30) -> float:
         .scalar()
         or 0
     )
-    return float(total) / days if days > 0 else 0
+    if total > 0:
+        return float(total) / days if days > 0 else 0
+
+    # Demo/historical data: no expenses in the last N calendar days from *today*,
+    # but older rows exist — use trailing N days ending on the latest expense date.
+    latest_exp = (
+        db.session.query(func.max(Transaction.date))
+        .filter(Transaction.user_id == user_id, Transaction.type == "expense")
+        .scalar()
+    )
+    if not latest_exp:
+        return 0.0
+    start2 = latest_exp - timedelta(days=days)
+    total2 = (
+        db.session.query(func.coalesce(func.sum(Transaction.amount), 0))
+        .filter(
+            Transaction.user_id == user_id,
+            Transaction.type == "expense",
+            Transaction.date >= start2,
+            Transaction.date <= latest_exp,
+        )
+        .scalar()
+        or 0
+    )
+    return float(total2) / days if days > 0 and total2 else 0.0
 
 
 def get_current_balance(user_id: int) -> float:

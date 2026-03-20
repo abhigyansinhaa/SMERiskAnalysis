@@ -7,3 +7,4 @@ __pycache__/
 venv/
 *.db
 .DS_Store
+sample_data
