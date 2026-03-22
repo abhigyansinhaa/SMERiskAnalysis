@@ -4,25 +4,39 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Cashflow Risk Advisor{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,700;1,9..144,500&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
-<body>
-    {% if current_user.is_authenticated %}
-    <nav class="navbar">
-        <a href="{{ url_for('analytics.dashboard') }}" class="brand">Cashflow Advisor</a>
-        <div class="nav-links">
-            <a href="{{ url_for('analytics.dashboard') }}">Dashboard</a>
-            <a href="{{ url_for('transactions.list_transactions') }}">Transactions</a>
-            <a href="{{ url_for('analytics.forecast') }}">Forecast</a>
-            <a href="{{ url_for('advisor.index') }}">Advisor</a>
-            <a href="{{ url_for('auth.logout') }}">Logout</a>
-        </div>
-    </nav>
-    {% endif %}
+<body class="{% block body_class %}{% endblock %}">
+    <header class="site-header">
+        <a href="{{ url_for('index') }}" class="brand">
+            <span class="brand-mark" aria-hidden="true"></span>
+            <span class="brand-text">Cashflow Advisor</span>
+        </a>
+        <nav class="site-nav" aria-label="Main">
+            {% if current_user.is_authenticated %}
+            <a href="{{ url_for('analytics.dashboard') }}" class="nav-link{% if request.endpoint == 'analytics.dashboard' %} is-active{% endif %}">Dashboard</a>
+            <a href="{{ url_for('transactions.list_transactions') }}" class="nav-link{% if request.blueprint == 'transactions' %} is-active{% endif %}">Transactions</a>
+            <a href="{{ url_for('analytics.forecast') }}" class="nav-link{% if request.endpoint == 'analytics.forecast' %} is-active{% endif %}">Forecast</a>
+            <a href="{{ url_for('advisor.index') }}" class="nav-link{% if request.blueprint == 'advisor' %} is-active{% endif %}">Advisor</a>
+            <a href="{{ url_for('auth.logout') }}" class="nav-link nav-link--muted">Logout</a>
+            {% else %}
+            <a href="{{ url_for('index') }}" class="nav-link{% if request.endpoint == 'index' %} is-active{% endif %}">Home</a>
+            <a href="{{ url_for('auth.login') }}" class="nav-link{% if request.endpoint == 'auth.login' %} is-active{% endif %}">Login</a>
+            <a href="{{ url_for('auth.register') }}" class="btn btn--primary btn--sm">Get started</a>
+            {% endif %}
+        </nav>
+    </header>
 
-    <main class="container">
+    <main class="{% block main_class %}container{% endblock %}">
         {% block content %}{% endblock %}
     </main>
+
+    <footer class="site-footer">
+        <p>SME Cashflow &amp; Risk Advisor · Demo / coursework</p>
+    </footer>
 
     {% block scripts %}{% endblock %}
 </body>

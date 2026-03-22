@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Cashflow Risk Advisor — Know your runway{% endblock %}
+{% block body_class %}page-home{% endblock %}
+{% block main_class %}main-landing{% endblock %}
+{% block content %}
+<section class="hero" aria-labelledby="hero-title">
+    <div class="hero__grid">
+        <div class="hero__copy">
+            <p class="hero__eyebrow">Built for small &amp; medium businesses</p>
+            <h1 id="hero-title" class="hero__title">Cashflow clarity, forecasts you can defend, and advice grounded in <em>your</em> numbers.</h1>
+            <p class="hero__lead">Import transactions, watch burn and runway update, stress-test with what-if scenarios, and get an executive summary tied to real metrics—not generic fluff.</p>
+            <div class="hero__actions">
+                <a href="{{ url_for('auth.register') }}" class="btn btn--primary btn--lg">Create account</a>
+                <a href="{{ url_for('auth.login') }}" class="btn btn--secondary btn--lg">Sign in</a>
+            </div>
+            <ul class="hero__stats" role="list">
+                <li><strong>Ridge</strong> short-horizon forecast</li>
+                <li><strong>CSV</strong> bank-style import</li>
+                <li><strong>LLM</strong> advisor + safe fallback</li>
+            </ul>
+        </div>
+        <div class="hero__panel" aria-hidden="true">
+            <div class="hero-card">
+                <span class="hero-card__label">This month</span>
+                <div class="hero-card__row"><span>Income</span><span class="hero-card__num hero-card__num--up">$84,240</span></div>
+                <div class="hero-card__row"><span>Expense</span><span class="hero-card__num">$71,180</span></div>
+                <div class="hero-card__row hero-card__row--accent"><span>Net</span><span class="hero-card__num hero-card__num--up">+$13,060</span></div>
+                <div class="hero-card__bar"><span style="width:62%"></span></div>
+                <p class="hero-card__hint">Sample figures — your dashboard uses live data.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="features">
+    <h2 class="features__title">Everything for a solid viva demo</h2>
+    <div class="features__grid">
+        <article class="feature-card">
+            <h3 class="feature-card__h">Transactions</h3>
+            <p>CRUD, categories, and CSV import aligned with default buckets so breakdowns stay clean.</p>
+        </article>
+        <article class="feature-card">
+            <h3 class="feature-card__h">Dashboard</h3>
+            <p>Monthly KPIs, burn, runway, category split, and top vendors—scoped per user.</p>
+        </article>
+        <article class="feature-card">
+            <h3 class="feature-card__h">Forecast &amp; what-if</h3>
+            <p>Regression-based baseline plus sliders for sales, rent, and one-off hits.</p>
+        </article>
+        <article class="feature-card">
+            <h3 class="feature-card__h">Advisor</h3>
+            <p>Executive summary and actions from computed metrics; API optional, template always works.</p>
+        </article>
+    </div>
+</section>
+
+<section class="cta-band">
+    <div class="cta-band__inner">
+        <h2 class="cta-band__title">Ready to test with synthetic data?</h2>
+        <p class="cta-band__text">Run <code>python sample_data/build_harborline_dataset.py</code> then import the CSV from Transactions.</p>
+        <a href="{{ url_for('auth.register') }}" class="btn btn--primary">Get started</a>
+    </div>
+</section>
+{% endblock %}

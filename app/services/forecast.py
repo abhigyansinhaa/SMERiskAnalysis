@@ -7,11 +7,10 @@ import numpy as np
 import pandas as pd
 from sklearn.linear_model import Ridge
 from sklearn.metrics import mean_absolute_error, mean_squared_error
-
 from sqlalchemy import func
 
 from app import db
-from app.models import Transaction, Forecast
+from app.models import Forecast, Transaction
 
 
 def _build_daily_series(user_id: int, start: date, end: date) -> pd.DataFrame:

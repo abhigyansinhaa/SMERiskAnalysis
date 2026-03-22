@@ -7,13 +7,13 @@ from sqlalchemy import (
     Boolean,
     Date,
     DateTime,
+    Enum,
     Float,
     ForeignKey,
     Index,
     Integer,
     String,
     Text,
-    Enum,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -72,9 +72,9 @@ class Transaction(db.Model):
     date: Mapped[datetime] = mapped_column(Date, nullable=False, index=True)
     amount: Mapped[float] = mapped_column(Float, nullable=False)
     type: Mapped[str] = mapped_column(Enum("income", "expense"), nullable=False)
-    category_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("categories.id", ondelete="SET NULL"), nullable=True)
-    merchant: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    category_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("categories.id", ondelete="SET NULL"), nullable=True)
+    merchant: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     user: Mapped["User"] = relationship("User", back_populates="transactions")
@@ -90,7 +90,7 @@ class Budget(db.Model):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    category_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("categories.id", ondelete="CASCADE"), nullable=True)
+    category_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("categories.id", ondelete="CASCADE"), nullable=True)
     month: Mapped[datetime] = mapped_column(Date, nullable=False)  # first day of month
     amount: Mapped[float] = mapped_column(Float, nullable=False)
 
@@ -112,7 +112,7 @@ class Forecast(db.Model):
     predicted_net: Mapped[float] = mapped_column(Float, nullable=False)
     predicted_balance: Mapped[float] = mapped_column(Float, nullable=False)
     model_name: Mapped[str] = mapped_column(String(50), nullable=False)
-    metrics_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    metrics_json: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     user: Mapped["User"] = relationship("User", back_populates="forecasts")
 

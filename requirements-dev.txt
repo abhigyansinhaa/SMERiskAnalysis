@@ -1,0 +1,2 @@
+# Dev / CI: pip install -r requirements-dev.txt
+ruff>=0.8.0

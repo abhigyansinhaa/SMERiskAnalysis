@@ -3,5 +3,7 @@ from flask import Blueprint
 
 analytics_bp = Blueprint("analytics", __name__)
 
-from app.blueprints.analytics import routes  # noqa: E402, F401
-from app.blueprints.analytics import forecast_routes  # noqa: E402, F401
+from app.blueprints.analytics import (  # noqa: E402
+    forecast_routes,  # noqa: F401
+    routes,  # noqa: F401
+)

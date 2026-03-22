@@ -1,20 +1,24 @@
 {% extends "base.html" %}
-{% block title %}Transactions - Cashflow Risk Advisor{% endblock %}
+{% block title %}Transactions — Cashflow Risk Advisor{% endblock %}
 {% block content %}
-<h1>Transactions</h1>
-<p>
-    <a href="{{ url_for('transactions.add') }}">Add Transaction</a> |
-    <a href="{{ url_for('transactions.import_csv') }}">Import CSV</a>
-</p>
+<header class="page-header">
+    <h1>Transactions</h1>
+    <p class="page-header__meta">Filter by type or month · up to 200 recent rows</p>
+</header>
 
-<form method="get" class="filters">
-    <select name="type">
+<div class="toolbar">
+    <a href="{{ url_for('transactions.add') }}" class="btn btn--primary btn--sm">Add transaction</a>
+    <a href="{{ url_for('transactions.import_csv') }}" class="btn btn--secondary btn--sm">Import CSV</a>
+</div>
+
+<form method="get" class="filters" aria-label="Filter transactions">
+    <select name="type" aria-label="Transaction type">
         <option value="">All types</option>
         <option value="income" {{ 'selected' if request.args.get('type')=='income' }}>Income</option>
         <option value="expense" {{ 'selected' if request.args.get('type')=='expense' }}>Expense</option>
     </select>
-    <input type="month" name="month" value="{{ request.args.get('month', '') }}">
-    <button type="submit">Filter</button>
+    <input type="month" name="month" value="{{ request.args.get('month', '') }}" aria-label="Month">
+    <button type="submit">Apply filters</button>
 </form>
 
 {% with messages = get_flashed_messages(with_categories=true) %}
@@ -27,6 +31,7 @@
 {% endif %}
 {% endwith %}
 
+<div class="table-wrap">
 <table class="data-table">
     <thead>
         <tr>
@@ -35,7 +40,7 @@
             <th>Amount</th>
             <th>Category</th>
             <th>Merchant</th>
-            <th></th>
+            <th>Actions</th>
         </tr>
     </thead>
     <tbody>
@@ -50,14 +55,15 @@
             <td>{{ t.merchant or '—' }}</td>
             <td>
                 <a href="{{ url_for('transactions.edit', tx_id=t.id) }}">Edit</a>
-                <form method="post" action="{{ url_for('transactions.delete', tx_id=t.id) }}" style="display:inline">
-                    <button type="submit" onclick="return confirm('Delete?')">Delete</button>
+                <form method="post" action="{{ url_for('transactions.delete', tx_id=t.id) }}" class="form-inline-delete">
+                    <button type="submit" class="btn-danger" onclick="return confirm('Delete this transaction?')">Delete</button>
                 </form>
             </td>
         </tr>
         {% else %}
-        <tr><td colspan="6">No transactions yet. <a href="{{ url_for('transactions.add') }}">Add one</a> or <a href="{{ url_for('transactions.import_csv') }}">import CSV</a>.</td></tr>
+        <tr><td colspan="6" class="muted">No transactions yet. <a href="{{ url_for('transactions.add') }}">Add one</a> or <a href="{{ url_for('transactions.import_csv') }}">import CSV</a>.</td></tr>
         {% endfor %}
     </tbody>
 </table>
+</div>
 {% endblock %}

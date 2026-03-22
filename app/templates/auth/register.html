@@ -1,18 +1,32 @@
 {% extends "base.html" %}
-{% block title %}Register - Cashflow Risk Advisor{% endblock %}
+{% block title %}Register — Cashflow Risk Advisor{% endblock %}
+{% block body_class %}page-auth{% endblock %}
 {% block content %}
-<div class="auth-card">
-    <h1>Register</h1>
-    {% if error %}
-    <p class="error">{{ error }}</p>
-    {% endif %}
-    <form method="post" action="{{ url_for('auth.register') }}">
-        <label for="email">Email</label>
-        <input type="email" id="email" name="email" required autofocus>
-        <label for="password">Password</label>
-        <input type="password" id="password" name="password" required>
-        <button type="submit">Register</button>
-    </form>
-    <p><a href="{{ url_for('auth.login') }}">Login</a> if you already have an account.</p>
+<div class="auth-shell">
+    <div class="auth-shell__aside" aria-hidden="true">
+        <p class="auth-shell__tagline">Start in minutes.</p>
+        <p class="auth-shell__sub">Add transactions or import CSV—dashboard and forecast update from your data.</p>
+    </div>
+    <div class="auth-shell__form">
+        <div class="auth-card">
+            <h1 class="auth-card__title">Create your account</h1>
+            <p class="auth-card__subtitle">One workspace per email</p>
+            {% if error %}
+            <p class="form-error" role="alert">{{ error }}</p>
+            {% endif %}
+            <form method="post" action="{{ url_for('auth.register') }}" class="form-stack">
+                <div class="field">
+                    <label for="email">Email</label>
+                    <input type="email" id="email" name="email" required autofocus autocomplete="email" placeholder="you@company.com">
+                </div>
+                <div class="field">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" name="password" required autocomplete="new-password" placeholder="Choose a strong password">
+                </div>
+                <button type="submit" class="btn btn--primary btn--block">Register</button>
+            </form>
+            <p class="auth-card__footer">Already registered? <a href="{{ url_for('auth.login') }}">Login</a></p>
+        </div>
+    </div>
 </div>
 {% endblock %}

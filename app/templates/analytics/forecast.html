@@ -1,26 +1,31 @@
 {% extends "base.html" %}
-{% block title %}Forecast - Cashflow Risk Advisor{% endblock %}
+{% block title %}Forecast — Cashflow Risk Advisor{% endblock %}
 {% block content %}
-<h1>Forecast & What-If</h1>
+<header class="page-header">
+    <h1>Forecast &amp; what-if</h1>
+    <p class="page-header__meta">Ridge regression on daily net series · scenario adjusts baseline net</p>
+</header>
 
 <div class="forecast-section">
-    <h2>Baseline Forecast</h2>
-    <button id="run-forecast">Run Forecast (30 days)</button>
-    <div id="forecast-result" class="result-box"></div>
+    <h2>Baseline forecast</h2>
+    <p class="muted">Runs a 30-day horizon and stores metrics. May take a few seconds.</p>
+    <button type="button" id="run-forecast" class="btn btn--primary">Run forecast (30 days)</button>
+    <div id="forecast-result" class="result-box" role="status" aria-live="polite"></div>
 </div>
 
 <div class="whatif-section">
-    <h2>What-If Scenario</h2>
+    <h2>What-if scenario</h2>
+    <p class="muted">Sales % is applied to a rough income share of the baseline; rent and one-time hit subtract from adjusted net.</p>
     <div class="whatif-inputs">
-        <label>Sales change (%): <input type="number" id="sales-pct" step="0.01" value="0" placeholder="-20 for -20%"></label>
-        <label>Rent change: <input type="number" id="rent-change" step="0.01" value="0" placeholder="+500"></label>
-        <label>One-time expense: <input type="number" id="one-time" step="0.01" value="0"></label>
+        <label>Sales Δ % <input type="number" id="sales-pct" step="0.01" value="0" placeholder="-20"></label>
+        <label>Rent change ($) <input type="number" id="rent-change" step="0.01" value="0"></label>
+        <label>One-time expense ($) <input type="number" id="one-time" step="0.01" value="0"></label>
     </div>
-    <button id="run-whatif">Apply What-If</button>
-    <div id="whatif-result" class="result-box"></div>
+    <button type="button" id="run-whatif" class="btn btn--secondary">Apply what-if</button>
+    <div id="whatif-result" class="result-box" role="status" aria-live="polite"></div>
 </div>
 
-<div id="forecast-chart" class="chart-placeholder"></div>
+<div id="forecast-chart" class="chart-placeholder muted" aria-hidden="true">Chart placeholder — KPIs render above</div>
 {% endblock %}
 {% block scripts %}
 <script>

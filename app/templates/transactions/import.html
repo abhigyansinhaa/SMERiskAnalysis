@@ -1,12 +1,21 @@
 {% extends "base.html" %}
-{% block title %}Import CSV - Cashflow Risk Advisor{% endblock %}
+{% block title %}Import CSV — Cashflow Risk Advisor{% endblock %}
 {% block content %}
-<h1>Import Transactions from CSV</h1>
-<p class="muted">Expected columns: date, amount, type (income/expense), category, merchant, notes. Amount can be signed (positive=income, negative=expense).</p>
-<form method="post" enctype="multipart/form-data">
-    <label>CSV File</label>
-    <input type="file" name="file" accept=".csv" required>
-    <button type="submit">Import</button>
+<header class="page-header">
+    <h1>Import transactions</h1>
+    <p class="page-header__meta">UTF-8 CSV · columns: <code style="color:var(--accent-strong)">date, amount, type, category, merchant, notes</code></p>
+</header>
+
+<p class="muted">Amount can be signed (positive = income, negative = expense). Category names should match your buckets (e.g. Sales, Rent, Payroll).</p>
+
+<form method="post" enctype="multipart/form-data" class="form-page">
+    <div class="field">
+        <label for="file">CSV file</label>
+        <input type="file" id="file" name="file" accept=".csv" required>
+    </div>
+    <div class="form-actions">
+        <button type="submit" class="btn btn--primary">Import</button>
+        <a href="{{ url_for('transactions.list_transactions') }}">Back to transactions</a>
+    </div>
 </form>
-<p><a href="{{ url_for('transactions.list_transactions') }}">Back to Transactions</a></p>
 {% endblock %}

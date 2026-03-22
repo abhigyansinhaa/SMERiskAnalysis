@@ -1,0 +1,26 @@
+[project]
+name = "cashflow-risk-advisor"
+version = "0.1.0"
+description = "SME Cashflow & Risk Advisor (Flask + MySQL)"
+readme = "README.md"
+requires-python = ">=3.10"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+src = ["app", "scripts", "sample_data", "run.py", "config.py"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    "I",   # isort
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+]
+ignore = [
+    "E501",  # line length (handled by formatter if added later)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"app/blueprints/**/__init__.py" = ["E402"]  # late imports register routes on blueprint

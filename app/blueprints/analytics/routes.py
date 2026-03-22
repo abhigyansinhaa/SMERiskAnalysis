@@ -1,18 +1,18 @@
 """Dashboard and analytics routes."""
 from flask import render_template
-from flask_login import login_required, current_user
+from flask_login import current_user, login_required
 
 from app.blueprints.analytics import analytics_bp
 from app.services.analytics import (
+    check_and_create_alerts,
+    compute_runway,
+    get_alerts,
+    get_burn_rate,
+    get_category_breakdown,
+    get_current_balance,
     get_dashboard_month,
     get_monthly_totals,
-    get_category_breakdown,
     get_top_vendors,
-    get_burn_rate,
-    get_current_balance,
-    compute_runway,
-    check_and_create_alerts,
-    get_alerts,
 )
 
 

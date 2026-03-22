@@ -4,12 +4,12 @@ import io
 from calendar import monthrange
 from datetime import datetime
 
-from flask import redirect, render_template, request, url_for, flash
-from flask_login import login_required, current_user
+from flask import flash, redirect, render_template, request, url_for
+from flask_login import current_user, login_required
 
 from app import db
 from app.blueprints.transactions import transactions_bp
-from app.models import Transaction, Category
+from app.models import Category, Transaction
 
 
 def _get_or_create_categories(user_id: int) -> dict:

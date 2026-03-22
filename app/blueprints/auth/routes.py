@@ -1,6 +1,6 @@
 """Auth routes: login, register, logout."""
 from flask import redirect, render_template, request, url_for
-from flask_login import login_user, logout_user, login_required, current_user
+from flask_login import current_user, login_required, login_user, logout_user
 
 from app import db
 from app.blueprints.auth import auth_bp

@@ -1,6 +1,6 @@
 """LLM Advisor routes - grounded summary and recommendations."""
-from flask import render_template, jsonify
-from flask_login import login_required, current_user
+from flask import jsonify, render_template
+from flask_login import current_user, login_required
 
 from app.blueprints.advisor import advisor_bp
 from app.services.advisor import generate_summary

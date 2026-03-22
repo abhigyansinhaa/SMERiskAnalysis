@@ -5,12 +5,12 @@ from datetime import date
 from flask import current_app
 
 from app.services.analytics import (
-    get_monthly_totals,
-    get_category_breakdown,
-    get_burn_rate,
-    get_current_balance,
     compute_runway,
     get_alerts,
+    get_burn_rate,
+    get_category_breakdown,
+    get_current_balance,
+    get_monthly_totals,
 )
 from app.services.forecast import run_forecast
 

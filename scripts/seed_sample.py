@@ -6,8 +6,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from datetime import date, timedelta
+
 from app import create_app, db
-from app.models import User, Category, Transaction, Alert
+from app.models import Alert, Category, Transaction, User
 
 
 def seed():

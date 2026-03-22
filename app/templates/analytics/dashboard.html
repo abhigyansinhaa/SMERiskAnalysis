@@ -1,22 +1,27 @@
 {% extends "base.html" %}
-{% block title %}Dashboard - Cashflow Risk Advisor{% endblock %}
+{% block title %}Dashboard — Cashflow Risk Advisor{% endblock %}
 {% block content %}
-<h1>Dashboard</h1>
+<header class="page-header">
+    <h1>Dashboard</h1>
+    <p class="page-header__meta">Period: <strong>{{ '%04d-%02d'|format(dashboard_year, dashboard_month) }}</strong> · Balance is all-time net of recorded transactions</p>
+</header>
+
 {% if period_note %}
 <p class="muted period-note">{{ period_note }}</p>
-<p class="muted">Monthly KPIs use the <strong>latest month with transactions</strong> when the current calendar month has no activity (common with demo/historical CSV dates).</p>
+<p class="muted">Monthly KPIs use the <strong>latest month with transactions</strong> when the current calendar month has no activity (e.g. old CSV dates).</p>
 {% endif %}
+
 <div class="kpi-grid">
     <div class="kpi-card">
-        <span class="kpi-label">Monthly Income</span>
+        <span class="kpi-label">Monthly income</span>
         <span class="kpi-value">{{ "%.2f"|format(totals.income) }}</span>
     </div>
     <div class="kpi-card">
-        <span class="kpi-label">Monthly Expense</span>
+        <span class="kpi-label">Monthly expense</span>
         <span class="kpi-value">{{ "%.2f"|format(totals.expense) }}</span>
     </div>
     <div class="kpi-card">
-        <span class="kpi-label">Net Cashflow</span>
+        <span class="kpi-label">Net cashflow</span>
         <span class="kpi-value {{ 'positive' if totals.net >= 0 else 'negative' }}">{{ "%.2f"|format(totals.net) }}</span>
     </div>
     <div class="kpi-card">
@@ -24,9 +29,9 @@
         <span class="kpi-value">{{ "%.2f"|format(balance) }}</span>
     </div>
     <div class="kpi-card">
-        <span class="kpi-label">Burn Rate (30d avg)</span>
-        <span class="kpi-value">{{ "%.2f"|format(burn_rate) }}/day</span>
-        <span class="kpi-hint muted">Trailing expenses; uses latest data if none in last 30 days.</span>
+        <span class="kpi-label">Burn rate (30d avg)</span>
+        <span class="kpi-value">{{ "%.2f"|format(burn_rate) }}</span>
+        <span class="kpi-hint muted">Per day · uses latest activity window if none in last 30 calendar days</span>
     </div>
     <div class="kpi-card">
         <span class="kpi-label">Runway</span>
@@ -34,8 +39,8 @@
     </div>
 </div>
 
-<div class="alerts-section">
-    <h2>Alerts</h2>
+<section class="alerts-section" aria-labelledby="alerts-heading">
+    <h2 id="alerts-heading">Alerts</h2>
     {% if alerts %}
     <ul class="alert-list">
         {% for a in alerts %}
@@ -47,10 +52,10 @@
     {% else %}
     <p class="muted">No alerts.</p>
     {% endif %}
-</div>
+</section>
 
-<div class="charts-section">
-    <h2>Category Breakdown ({{ '%04d-%02d'|format(dashboard_year, dashboard_month) }})</h2>
+<section class="charts-section" aria-labelledby="cat-heading">
+    <h2 id="cat-heading">Category breakdown ({{ '%04d-%02d'|format(dashboard_year, dashboard_month) }})</h2>
     {% if categories %}
     <table class="data-table">
         <thead>
@@ -69,18 +74,18 @@
     {% else %}
     <p class="muted">Add transactions to see category breakdown.</p>
     {% endif %}
-</div>
+</section>
 
-<div class="vendors-section">
-    <h2>Top Vendors ({{ '%04d-%02d'|format(dashboard_year, dashboard_month) }})</h2>
+<section class="vendors-section" aria-labelledby="vendors-heading">
+    <h2 id="vendors-heading">Top vendors ({{ '%04d-%02d'|format(dashboard_year, dashboard_month) }})</h2>
     {% if vendors %}
     <ul>
         {% for v in vendors %}
-        <li>{{ v.merchant }}: {{ "%.2f"|format(v.total) }}</li>
+        <li><span class="muted">{{ v.merchant }}</span> · {{ "%.2f"|format(v.total) }}</li>
         {% endfor %}
     </ul>
     {% else %}
     <p class="muted">No vendor data yet.</p>
     {% endif %}
-</div>
+</section>
 {% endblock %}

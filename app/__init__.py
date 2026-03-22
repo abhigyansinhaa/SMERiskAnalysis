@@ -1,9 +1,8 @@
 """Cashflow Risk Advisor - Flask application factory."""
-from flask import Flask
+from config import config_by_name
+from flask import Flask, render_template
 from flask_login import LoginManager
 from flask_sqlalchemy import SQLAlchemy
-
-from config import config_by_name
 
 db = SQLAlchemy()
 login_manager = LoginManager()
@@ -26,13 +25,13 @@ def create_app(config_name: str | None = None) -> Flask:
     @login_manager.user_loader
     def load_user(user_id):
         from app.models import User
-        return User.query.get(int(user_id))
+        return db.session.get(User, int(user_id))
 
     # Register blueprints
+    from app.blueprints.advisor import advisor_bp
+    from app.blueprints.analytics import analytics_bp
     from app.blueprints.auth import auth_bp
     from app.blueprints.transactions import transactions_bp
-    from app.blueprints.analytics import analytics_bp
-    from app.blueprints.advisor import advisor_bp
 
     app.register_blueprint(auth_bp, url_prefix="/")
     app.register_blueprint(transactions_bp, url_prefix="/transactions")
@@ -43,8 +42,9 @@ def create_app(config_name: str | None = None) -> Flask:
     def index():
         from flask import redirect, url_for
         from flask_login import current_user
+
         if current_user.is_authenticated:
             return redirect(url_for("analytics.dashboard"))
-        return redirect(url_for("auth.login"))
+        return render_template("home.html")
 
     return app

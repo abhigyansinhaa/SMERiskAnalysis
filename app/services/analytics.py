@@ -1,10 +1,11 @@
 """Analytics service: aggregates, risk metrics, alerts."""
-from datetime import date, timedelta
 from collections import defaultdict
+from datetime import date, timedelta
 
 from sqlalchemy import func
+
 from app import db
-from app.models import Transaction, Alert, Category
+from app.models import Alert, Category, Transaction
 
 
 def get_dashboard_month(user_id: int) -> tuple[int, int, str]:

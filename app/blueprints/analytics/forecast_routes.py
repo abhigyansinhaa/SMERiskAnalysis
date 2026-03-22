@@ -1,6 +1,6 @@
 """Forecast and what-if routes."""
-from flask import render_template, request, jsonify
-from flask_login import login_required, current_user
+from flask import jsonify, render_template, request
+from flask_login import current_user, login_required
 
 from app.blueprints.analytics import analytics_bp
 from app.services.forecast import run_forecast, run_whatif

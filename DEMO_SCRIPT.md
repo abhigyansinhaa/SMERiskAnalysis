@@ -1,11 +1,5 @@
 # Cashflow Risk Advisor – Demo Script
 
-## Prerequisites
-
-1. **MySQL** running with database `cashflow_risk` created
-2. **Python 3.10+** with dependencies: `pip install -r requirements.txt`
-3. **Environment**: Copy `.env.example` to `.env` and set `MYSQL_*` and optionally `OPENAI_API_KEY`
-
 ## Setup
 
 ```bash
@@ -18,8 +12,8 @@ python scripts/seed_sample.py
 
 ## Demo Flow (5–7 minutes)
 
-### 1. Login / Register
-- Open http://localhost:5000
+### 1. Home & login
+- Open http://localhost:5000 — **landing page** with product overview; use **Get started** / **Sign in**
 - Login: `demo@example.com` / `demo123` (or register a new user)
 
 ### 2. Import CSV
