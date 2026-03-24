@@ -37,10 +37,12 @@ class Config:
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_ENGINE_OPTIONS = {"pool_pre_ping": True}
 
-    # LLM
-    OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
-    OPENAI_BASE_URL = os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1")
-    OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
+    # LLM — OpenRouter (OpenAI-compatible API: https://openrouter.ai/docs)
+    OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
+    OPENROUTER_BASE_URL = os.environ.get("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
+    OPENROUTER_MODEL = os.environ.get("OPENROUTER_MODEL", "openai/gpt-4o-mini")
+    OPENROUTER_HTTP_REFERER = os.environ.get("OPENROUTER_HTTP_REFERER", "")
+    OPENROUTER_APP_NAME = os.environ.get("OPENROUTER_APP_NAME", "Cashflow Risk Advisor")
 
 
 class DevelopmentConfig(Config):

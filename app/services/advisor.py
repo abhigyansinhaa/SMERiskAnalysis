@@ -88,27 +88,8 @@ def _build_fallback_narrative(metrics: dict) -> tuple[str, list[str]]:
     return "\n".join(summary_parts), actions
 
 
-def generate_summary(user_id: int) -> tuple[str, list[str]]:
-    """
-    Generate executive summary and recommended actions.
-    Uses LLM if API key is set; otherwise falls back to template narrative.
-    """
-    metrics = _gather_metrics(user_id)
-    api_key = current_app.config.get("OPENAI_API_KEY", "").strip()
-
-    if not api_key:
-        return _build_fallback_narrative(metrics)
-
-    try:
-        from openai import OpenAI
-
-        client = OpenAI(
-            api_key=api_key,
-            base_url=current_app.config.get("OPENAI_BASE_URL", "https://api.openai.com/v1"),
-        )
-        model = current_app.config.get("OPENAI_MODEL", "gpt-4o-mini")
-
-        prompt = f"""You are a cashflow advisor for a small business. Based ONLY on the following computed metrics (do not invent numbers), write:
+def _build_advisor_prompt(metrics: dict) -> str:
+    return f"""You are a cashflow advisor for a small business. Based ONLY on the following computed metrics (do not invent numbers), write:
 1. A brief Executive Summary (2-3 sentences) describing the cashflow situation.
 2. A list of 3-5 Recommended Actions, each as a short actionable item.
 
@@ -119,19 +100,65 @@ Respond in JSON format:
 {{"summary": "your executive summary here", "actions": ["action 1", "action 2", ...]}}
 """
 
+
+def _parse_llm_json(text: str) -> dict:
+    """Parse JSON from model output; tolerate markdown fences."""
+    text = text.strip()
+    if "```" in text:
+        text = text.split("```")[1]
+        if text.startswith("json"):
+            text = text[4:]
+        text = text.strip()
+    return json.loads(text)
+
+
+def generate_summary(user_id: int) -> tuple[str, list[str]]:
+    """
+    Generate executive summary and recommended actions.
+    Uses OpenRouter if OPENROUTER_API_KEY is set; otherwise template narrative.
+    """
+    metrics = _gather_metrics(user_id)
+    api_key = (current_app.config.get("OPENROUTER_API_KEY") or "").strip()
+
+    if not api_key:
+        return _build_fallback_narrative(metrics)
+
+    try:
+        from openai import OpenAI
+
+        cfg = current_app.config
+        base_url = cfg.get("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
+        model = cfg.get("OPENROUTER_MODEL", "openai/gpt-4o-mini")
+
+        headers: dict[str, str] = {}
+        referer = (cfg.get("OPENROUTER_HTTP_REFERER") or "").strip()
+        if referer:
+            headers["HTTP-Referer"] = referer
+        app_name = (cfg.get("OPENROUTER_APP_NAME") or "Cashflow Risk Advisor").strip()
+        if app_name:
+            headers["X-Title"] = app_name
+
+        client_kwargs: dict = {
+            "api_key": api_key,
+            "base_url": base_url,
+        }
+        if headers:
+            client_kwargs["default_headers"] = headers
+
+        client = OpenAI(**client_kwargs)
+        prompt = _build_advisor_prompt(metrics)
+
         response = client.chat.completions.create(
             model=model,
             messages=[{"role": "user", "content": prompt}],
             temperature=0.3,
         )
-        text = response.choices[0].message.content.strip()
-        # Extract JSON (handle markdown code blocks)
-        if "```" in text:
-            text = text.split("```")[1]
-            if text.startswith("json"):
-                text = text[4:]
-        data = json.loads(text)
+        text = (response.choices[0].message.content or "").strip()
+        if not text:
+            raise ValueError("Empty response from OpenRouter")
+
+        data = _parse_llm_json(text)
         return data.get("summary", ""), data.get("actions", [])
     except Exception as e:
-        current_app.logger.warning(f"LLM advisor failed: {e}")
+        current_app.logger.warning(f"OpenRouter advisor failed: {e}")
         return _build_fallback_narrative(metrics)

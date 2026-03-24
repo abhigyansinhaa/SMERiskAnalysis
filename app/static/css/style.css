@@ -886,13 +886,28 @@ button.btn--secondary {
 }
 
 /* ——— Forecast / advisor ——— */
+.forecast-controls-row {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1.25rem;
+    margin: 2rem 0 0;
+    align-items: stretch;
+}
+
+@media (min-width: 900px) {
+    .forecast-controls-row {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
 .forecast-section,
 .whatif-section {
-    margin: 2rem 0;
+    margin: 0;
     padding: 1.5rem;
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: var(--radius);
+    min-width: 0;
 }
 
 .forecast-section h2,
@@ -975,7 +990,7 @@ button.btn--secondary {
 }
 
 .forecast-visualization {
-    margin: 2rem 0;
+    margin: 1.25rem 0 2rem;
     padding: 1.5rem;
     background: var(--surface);
     border: 1px solid var(--border);

@@ -40,5 +40,5 @@ Config: `pyproject.toml` (Ruff: E, F, I, UP, B).
 - Flask, SQLAlchemy, Flask-Login
 - MySQL (PyMySQL)
 - scikit-learn (Ridge regression)
-- OpenAI API (optional, for LLM advisor)
+- OpenRouter API (optional, for LLM advisor; set `OPENROUTER_API_KEY` in `.env`, and optionally `OPENROUTER_MODEL`, e.g. `openai/gpt-4o-mini`)
 - UI: Outfit + Fraunces (Google Fonts), responsive layout
