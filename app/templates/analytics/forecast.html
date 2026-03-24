@@ -13,6 +13,23 @@
     <div id="forecast-result" class="result-box" role="status" aria-live="polite"></div>
 </div>
 
+<section class="forecast-visualization" aria-labelledby="forecast-viz-heading">
+    <h2 id="forecast-viz-heading">Projected cash balance (30 days)</h2>
+    <p id="forecast-viz-summary" class="visually-hidden" aria-live="polite"></p>
+    <div class="forecast-visualization__grid">
+        <div class="forecast-chart-wrap">
+            <p id="forecast-chart-empty" class="muted forecast-chart-empty">Run a forecast to see your projected balance path.</p>
+            <div id="forecast-chart-host" class="forecast-chart-host" hidden>
+                <canvas id="forecast-chart-canvas" aria-hidden="true"></canvas>
+            </div>
+        </div>
+        <div id="forecast-insights" class="summary-box forecast-insights" hidden>
+            <h3>Insights</h3>
+            <ul id="forecast-insights-list" class="forecast-insights__list"></ul>
+        </div>
+    </div>
+</section>
+
 <div class="whatif-section">
     <h2>What-if scenario</h2>
     <p class="muted">Sales % is applied to a rough income share of the baseline; rent and one-time hit subtract from adjusted net.</p>
@@ -24,59 +41,301 @@
     <button type="button" id="run-whatif" class="btn btn--secondary">Apply what-if</button>
     <div id="whatif-result" class="result-box" role="status" aria-live="polite"></div>
 </div>
-
-<div id="forecast-chart" class="chart-placeholder muted" aria-hidden="true">Chart placeholder — KPIs render above</div>
 {% endblock %}
 {% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script>
-document.getElementById('run-forecast').onclick = async () => {
-    const el = document.getElementById('forecast-result');
-    el.textContent = 'Running...';
-    try {
-        const r = await fetch('/forecast/run', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ horizon_days: 30 })
+(function () {
+    const EPS = 1e-6;
+    let forecastChart = null;
+
+    function cssColor(name, fallback) {
+        const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+        return v || fallback;
+    }
+
+    function fmtMoney(n) {
+        return (typeof n === 'number' && !isNaN(n)) ? n.toFixed(2) : 'N/A';
+    }
+
+    function fmtDate(iso) {
+        if (!iso) return '';
+        const d = new Date(iso + 'T12:00:00');
+        return isNaN(d.getTime()) ? iso : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    }
+
+    function cumulativeBalances(opening, daily) {
+        let b = opening;
+        const labels = [];
+        const balances = [];
+        for (const row of daily) {
+            b += row.net;
+            labels.push(row.date);
+            balances.push(b);
+        }
+        return { labels, balances, opening };
+    }
+
+    function minBalancePoint(opening, daily) {
+        let b = opening;
+        let minB = b;
+        let minDate = null;
+        for (const row of daily) {
+            b += row.net;
+            if (b < minB) {
+                minB = b;
+                minDate = row.date;
+            }
+        }
+        return { minBalance: minB, minDate };
+    }
+
+    function destroyForecastChart() {
+        if (forecastChart) {
+            forecastChart.destroy();
+            forecastChart = null;
+        }
+    }
+
+    function setVizVisible(hasData) {
+        const emptyEl = document.getElementById('forecast-chart-empty');
+        const host = document.getElementById('forecast-chart-host');
+        const insights = document.getElementById('forecast-insights');
+        const canvas = document.getElementById('forecast-chart-canvas');
+        if (hasData) {
+            emptyEl.hidden = true;
+            host.hidden = false;
+            host.setAttribute('aria-hidden', 'false');
+            canvas.setAttribute('aria-hidden', 'true');
+            insights.hidden = false;
+        } else {
+            emptyEl.hidden = false;
+            host.hidden = true;
+            host.setAttribute('aria-hidden', 'true');
+            insights.hidden = true;
+            document.getElementById('forecast-insights-list').innerHTML = '';
+            document.getElementById('forecast-viz-summary').textContent = '';
+            destroyForecastChart();
+        }
+    }
+
+    function buildInsights(opening, endBalance, daily, metrics, scenario) {
+        const items = [];
+        const rise = endBalance >= opening;
+        items.push({
+            text: rise
+                ? 'Cash is projected to rise over this window (ending balance is higher than today).'
+                : 'Cash is projected to fall over this window (ending balance is lower than today).',
+            kind: 'info'
         });
-        const d = await r.json();
-        if (d.error) throw new Error(d.error);
-        el.innerHTML = `
+
+        const { minBalance, minDate } = minBalancePoint(opening, daily);
+        items.push({
+            text: `Lowest projected balance: ${fmtMoney(minBalance)} around ${fmtDate(minDate) || '—'}.`,
+            kind: minBalance < 0 ? 'critical' : 'info'
+        });
+
+        if (scenario) {
+            const dEnd = scenario.endScenario - scenario.endBaseline;
+            const dNet = scenario.adjNet - scenario.baseNet;
+            items.push({
+                text: `Scenario vs baseline: ending balance ${dEnd >= 0 ? '+' : ''}${fmtMoney(dEnd)}; 30-day net ${dNet >= 0 ? '+' : ''}${fmtMoney(dNet)}.`,
+                kind: 'info'
+            });
+        }
+
+        let caveat = 'Short-horizon Ridge forecast—use as a guide alongside your judgment.';
+        if (metrics && metrics.mae != null && daily.length) {
+            const avgAbs = daily.reduce((s, r) => s + Math.abs(r.net), 0) / daily.length;
+            if (avgAbs > EPS) {
+                caveat += ` Typical model error (MAE) is about ${fmtMoney(metrics.mae)} vs average daily movement ~${fmtMoney(avgAbs)}—treat steep moves cautiously.`;
+            } else {
+                caveat += ` Typical model error (MAE) is about ${fmtMoney(metrics.mae)}.`;
+            }
+        }
+        items.push({ text: caveat, kind: 'muted' });
+
+        return items;
+    }
+
+    function renderInsightsList(items) {
+        const ul = document.getElementById('forecast-insights-list');
+        ul.innerHTML = '';
+        for (const it of items) {
+            const li = document.createElement('li');
+            li.textContent = it.text;
+            if (it.kind === 'critical') li.classList.add('forecast-insights__item--critical');
+            if (it.kind === 'muted') li.classList.add('forecast-insights__item--muted');
+            ul.appendChild(li);
+        }
+        const summary = items.map((i) => i.text).join(' ');
+        document.getElementById('forecast-viz-summary').textContent = summary;
+    }
+
+    function renderChart(baselineDaily, opening, scenarioDaily) {
+        if (!baselineDaily || !baselineDaily.length) {
+            setVizVisible(false);
+            return;
+        }
+        setVizVisible(true);
+        destroyForecastChart();
+
+        const bl = cumulativeBalances(opening, baselineDaily);
+        const accent = cssColor('--accent', '#5eead4');
+        const violet = cssColor('--violet', '#a78bfa');
+        const muted = cssColor('--muted', '#8b9cb3');
+        const text = cssColor('--text', '#e8edf4');
+        const grid = cssColor('--border', '#2a3548');
+
+        const datasets = [{
+            label: 'Baseline',
+            data: bl.balances,
+            borderColor: accent,
+            backgroundColor: 'rgba(94, 234, 212, 0.08)',
+            fill: true,
+            tension: 0.2,
+            pointRadius: 0,
+            pointHitRadius: 6,
+            borderWidth: 2
+        }];
+
+        if (scenarioDaily && scenarioDaily.length === baselineDaily.length) {
+            const sc = cumulativeBalances(opening, scenarioDaily);
+            datasets.push({
+                label: 'Scenario',
+                data: sc.balances,
+                borderColor: violet,
+                backgroundColor: 'rgba(167, 139, 250, 0.06)',
+                fill: true,
+                tension: 0.2,
+                pointRadius: 0,
+                pointHitRadius: 6,
+                borderWidth: 2
+            });
+        }
+
+        const ctx = document.getElementById('forecast-chart-canvas').getContext('2d');
+        forecastChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: bl.labels.map(fmtDate),
+                datasets
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                plugins: {
+                    legend: {
+                        display: datasets.length > 1,
+                        labels: { color: text }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label(ctx) {
+                                const v = ctx.parsed.y;
+                                return (ctx.dataset.label || '') + ': ' + (v != null ? v.toFixed(2) : '');
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        ticks: { color: muted, maxTicksLimit: 8 },
+                        grid: { color: grid }
+                    },
+                    y: {
+                        ticks: { color: muted },
+                        grid: { color: grid }
+                    }
+                }
+            }
+        });
+    }
+
+    function updateVisualizationFromBaseline(d, scenarioExtra) {
+        const daily = d.daily_forecast || [];
+        const opening = d.opening_balance != null ? d.opening_balance : (d.predicted_balance - (daily.reduce((s, r) => s + r.net, 0)));
+        if (!daily.length) {
+            setVizVisible(false);
+            return;
+        }
+        const endB = opening + daily.reduce((s, r) => s + r.net, 0);
+        const items = buildInsights(opening, endB, daily, d.metrics, scenarioExtra);
+        renderInsightsList(items);
+        renderChart(daily, opening, null);
+    }
+
+    document.getElementById('run-forecast').onclick = async () => {
+        const el = document.getElementById('forecast-result');
+        el.textContent = 'Running...';
+        try {
+            const r = await fetch('/forecast/run', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ horizon_days: 30 })
+            });
+            const d = await r.json();
+            if (d.error) throw new Error(d.error);
+            el.innerHTML = `
             <p><strong>Predicted net (30d):</strong> ${d.predicted_net.toFixed(2)}</p>
             <p><strong>Predicted balance:</strong> ${d.predicted_balance.toFixed(2)}</p>
             <p class="muted">MAE: ${d.metrics?.mae != null ? d.metrics.mae.toFixed(2) : 'N/A'} | RMSE: ${d.metrics?.rmse != null ? d.metrics.rmse.toFixed(2) : 'N/A'}</p>
         `;
-    } catch (e) {
-        el.textContent = 'Error: ' + e.message;
-    }
-};
+            updateVisualizationFromBaseline(d, null);
+        } catch (e) {
+            el.textContent = 'Error: ' + e.message;
+            setVizVisible(false);
+        }
+    };
 
-document.getElementById('run-whatif').onclick = async () => {
-    const el = document.getElementById('whatif-result');
-    el.textContent = 'Running...';
-    const sales = parseFloat(document.getElementById('sales-pct').value) / 100 || 0;
-    const rent = parseFloat(document.getElementById('rent-change').value) || 0;
-    const one = parseFloat(document.getElementById('one-time').value) || 0;
-    try {
-        const r = await fetch('/forecast/whatif', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                sales_pct_change: sales,
-                rent_change: rent,
-                one_time_expense: one
-            })
-        });
-        const d = await r.json();
-        if (d.error) throw new Error(d.error);
-        const b = d.baseline || {};
-        el.innerHTML = `
+    document.getElementById('run-whatif').onclick = async () => {
+        const el = document.getElementById('whatif-result');
+        el.textContent = 'Running...';
+        try {
+            const sales = parseFloat(document.getElementById('sales-pct').value) / 100 || 0;
+            const rent = parseFloat(document.getElementById('rent-change').value) || 0;
+            const one = parseFloat(document.getElementById('one-time').value) || 0;
+            const r = await fetch('/forecast/whatif', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    sales_pct_change: sales,
+                    rent_change: rent,
+                    one_time_expense: one
+                })
+            });
+            const d = await r.json();
+            if (d.error) throw new Error(d.error);
+            const b = d.baseline || {};
+            el.innerHTML = `
             <p><strong>Baseline net:</strong> ${b.predicted_net != null ? b.predicted_net.toFixed(2) : 'N/A'}</p>
             <p><strong>Adjusted net:</strong> ${d.adjusted_net.toFixed(2)}</p>
             <p><strong>Adjusted balance:</strong> ${d.adjusted_balance.toFixed(2)}</p>
         `;
-    } catch (e) {
-        el.textContent = 'Error: ' + e.message;
-    }
-};
+            const daily = b.daily_forecast || [];
+            const opening = b.opening_balance != null
+                ? b.opening_balance
+                : (b.predicted_balance - daily.reduce((s, r) => s + r.net, 0));
+            if (!daily.length) {
+                setVizVisible(false);
+                return;
+            }
+            const adjDaily = d.adjusted_daily_forecast || [];
+            const scenario = {
+                endBaseline: b.predicted_balance,
+                endScenario: d.adjusted_balance,
+                baseNet: b.predicted_net,
+                adjNet: d.adjusted_net
+            };
+            const endB = opening + daily.reduce((s, r) => s + r.net, 0);
+            const items = buildInsights(opening, endB, daily, b.metrics, scenario);
+            renderInsightsList(items);
+            renderChart(daily, opening, adjDaily.length === daily.length ? adjDaily : null);
+        } catch (e) {
+            el.textContent = 'Error: ' + e.message;
+        }
+    };
+})();
 </script>
 {% endblock %}

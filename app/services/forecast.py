@@ -70,9 +70,11 @@ def run_forecast(
     df = _build_daily_series(user_id, start, as_of_date)
 
     if len(df) < 14:
+        opening = _get_balance_at(user_id, as_of_date)
         return {
             "predicted_net": 0,
-            "predicted_balance": 0,
+            "predicted_balance": opening,
+            "opening_balance": opening,
             "daily_forecast": [],
             "metrics": {"mae": None, "rmse": None, "note": "Insufficient data"},
         }
@@ -81,9 +83,11 @@ def run_forecast(
     df = df.dropna(subset=["lag1", "lag7", "lag14", "roll7", "roll14"])
 
     if len(df) < 7:
+        opening = _get_balance_at(user_id, as_of_date)
         return {
             "predicted_net": 0,
-            "predicted_balance": 0,
+            "predicted_balance": opening,
+            "opening_balance": opening,
             "daily_forecast": [],
             "metrics": {"mae": None, "rmse": None, "note": "Insufficient data after feature engineering"},
         }
@@ -144,6 +148,7 @@ def run_forecast(
     return {
         "predicted_net": cumulative_net,
         "predicted_balance": predicted_balance,
+        "opening_balance": current_balance,
         "daily_forecast": daily_forecast,
         "metrics": {"mae": mae, "rmse": rmse},
     }
@@ -200,6 +205,19 @@ def run_whatif(
     balance = _get_balance_at(user_id, date.today())
     adj_balance = balance + adj_net
 
+    daily = baseline.get("daily_forecast") or []
+    baseline_net = float(baseline.get("predicted_net") or 0)
+    epsilon = 1e-6
+    if not daily:
+        adjusted_daily_forecast: list[dict[str, Any]] = []
+    elif abs(baseline_net) > epsilon:
+        factor = adj_net / baseline_net
+        adjusted_daily_forecast = [{"date": row["date"], "net": float(row["net"]) * factor} for row in daily]
+    else:
+        n = len(daily)
+        uniform = (adj_net / n) if n else 0.0
+        adjusted_daily_forecast = [{"date": row["date"], "net": uniform} for row in daily]
+
     return {
         "baseline": baseline,
         "scenario": {
@@ -209,4 +227,5 @@ def run_whatif(
         },
         "adjusted_net": adj_net,
         "adjusted_balance": adj_balance,
+        "adjusted_daily_forecast": adjusted_daily_forecast,
     }
