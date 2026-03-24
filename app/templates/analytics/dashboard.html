@@ -11,33 +11,43 @@
 <p class="muted">Monthly KPIs use the <strong>latest month with transactions</strong> when the current calendar month has no activity (e.g. old CSV dates).</p>
 {% endif %}
 
-<div class="kpi-grid">
-    <div class="kpi-card">
-        <span class="kpi-label">Monthly income</span>
-        <span class="kpi-value">{{ "%.2f"|format(totals.income) }}</span>
+<section class="kpi-primary" aria-labelledby="primary-kpi-heading">
+    <h2 id="primary-kpi-heading" class="kpi-section__title kpi-section__title--primary">Cash runway &amp; burn</h2>
+    <div class="kpi-grid kpi-grid--primary">
+        <div class="kpi-card kpi-card--primary">
+            <span class="kpi-label">Burn rate (30d avg)</span>
+            <span class="kpi-value">{{ burn_rate|inr }}</span>
+            <span class="kpi-hint muted">Per day · uses latest activity window if none in last 30 calendar days</span>
+        </div>
+        <div class="kpi-card kpi-card--primary{% if runway is not none and runway < 7 %} kpi-card--runway-critical{% elif runway is not none and runway < 30 %} kpi-card--runway-warning{% endif %}">
+            <span class="kpi-label">Runway</span>
+            <span class="kpi-value{% if runway is not none and runway < 7 %} kpi-value--runway-critical{% elif runway is not none and runway < 30 %} kpi-value--runway-warning{% endif %}">{{ "%.0f days"|format(runway) if runway is not none else "∞" }}</span>
+            <span class="kpi-hint muted">At current daily burn</span>
+        </div>
     </div>
-    <div class="kpi-card">
-        <span class="kpi-label">Monthly expense</span>
-        <span class="kpi-value">{{ "%.2f"|format(totals.expense) }}</span>
+</section>
+
+<section class="kpi-secondary" aria-labelledby="secondary-kpi-heading">
+    <h2 id="secondary-kpi-heading" class="kpi-section__title">Monthly snapshot</h2>
+    <div class="kpi-grid">
+        <div class="kpi-card">
+            <span class="kpi-label">Monthly income</span>
+            <span class="kpi-value">{{ totals.income|inr }}</span>
+        </div>
+        <div class="kpi-card">
+            <span class="kpi-label">Monthly expense</span>
+            <span class="kpi-value">{{ totals.expense|inr }}</span>
+        </div>
+        <div class="kpi-card">
+            <span class="kpi-label">Net cashflow</span>
+            <span class="kpi-value {{ 'positive' if totals.net >= 0 else 'negative' }}">{{ totals.net|inr }}</span>
+        </div>
+        <div class="kpi-card">
+            <span class="kpi-label">Balance</span>
+            <span class="kpi-value">{{ balance|inr }}</span>
+        </div>
     </div>
-    <div class="kpi-card">
-        <span class="kpi-label">Net cashflow</span>
-        <span class="kpi-value {{ 'positive' if totals.net >= 0 else 'negative' }}">{{ "%.2f"|format(totals.net) }}</span>
-    </div>
-    <div class="kpi-card">
-        <span class="kpi-label">Balance</span>
-        <span class="kpi-value">{{ "%.2f"|format(balance) }}</span>
-    </div>
-    <div class="kpi-card">
-        <span class="kpi-label">Burn rate (30d avg)</span>
-        <span class="kpi-value">{{ "%.2f"|format(burn_rate) }}</span>
-        <span class="kpi-hint muted">Per day · uses latest activity window if none in last 30 calendar days</span>
-    </div>
-    <div class="kpi-card">
-        <span class="kpi-label">Runway</span>
-        <span class="kpi-value">{{ "%.0f days"|format(runway) if runway is not none else "∞" }}</span>
-    </div>
-</div>
+</section>
 
 <section class="alerts-section" aria-labelledby="alerts-heading">
     <h2 id="alerts-heading">Alerts</h2>
@@ -65,8 +75,8 @@
             {% for c in categories %}
             <tr>
                 <td>{{ c.name }}</td>
-                <td class="income">{{ "%.2f"|format(c.income) }}</td>
-                <td class="expense">{{ "%.2f"|format(c.expense) }}</td>
+                <td class="income">{{ c.income|inr }}</td>
+                <td class="expense">{{ c.expense|inr }}</td>
             </tr>
             {% endfor %}
         </tbody>
@@ -81,7 +91,7 @@
     {% if vendors %}
     <ul>
         {% for v in vendors %}
-        <li><span class="muted">{{ v.merchant }}</span> · {{ "%.2f"|format(v.total) }}</li>
+        <li><span class="muted">{{ v.merchant }}</span> · {{ v.total|inr }}</li>
         {% endfor %}
     </ul>
     {% else %}

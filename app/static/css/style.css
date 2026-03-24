@@ -44,10 +44,6 @@ body {
     line-height: 1.55;
     color: var(--text);
     background: var(--bg-deep);
-    background-image:
-        radial-gradient(ellipse 120% 80% at 100% -20%, rgba(94, 234, 212, 0.08), transparent 50%),
-        radial-gradient(ellipse 80% 50% at -10% 60%, rgba(167, 139, 250, 0.06), transparent 45%);
-    background-attachment: fixed;
 }
 
 /* ——— Header ——— */
@@ -76,11 +72,22 @@ body {
 }
 
 .brand-mark {
-    width: 2.25rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 2.25rem;
     height: 2.25rem;
+    padding: 0 0.4rem;
     border-radius: 10px;
-    background: linear-gradient(135deg, var(--accent-strong), var(--violet));
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 0.8125rem;
+    letter-spacing: -0.05em;
+    line-height: 1;
+    color: var(--bg-deep);
+    background: var(--accent-strong);
     box-shadow: 0 4px 20px var(--accent-dim);
+    user-select: none;
 }
 
 .brand-text {
@@ -255,7 +262,7 @@ body {
     content: "";
     position: absolute;
     inset: 0;
-    background: linear-gradient(145deg, var(--accent-dim), transparent 55%);
+    background: rgba(94, 234, 212, 0.08);
     pointer-events: none;
 }
 
@@ -307,7 +314,7 @@ body {
 .hero-card__bar span {
     display: block;
     height: 100%;
-    background: linear-gradient(90deg, var(--accent-strong), var(--violet));
+    background: var(--accent-strong);
     border-radius: 3px;
 }
 
@@ -367,7 +374,7 @@ body {
 .cta-band {
     padding: 3rem 1.5rem;
     border-top: 1px solid var(--border);
-    background: linear-gradient(180deg, rgba(94, 234, 212, 0.06), transparent);
+    background: rgba(94, 234, 212, 0.06);
 }
 
 .cta-band__inner {
@@ -425,7 +432,7 @@ body {
 }
 
 .btn--primary {
-    background: linear-gradient(135deg, var(--accent-strong), #14b8a6);
+    background: var(--accent-strong);
     color: var(--bg-deep);
     box-shadow: 0 4px 24px rgba(45, 212, 191, 0.25);
 }
@@ -623,14 +630,19 @@ button.btn--secondary {
     margin: 1rem 0 1.5rem;
 }
 
-.toolbar a {
+/* Plain links only — do not override .btn colors/hover (transactions toolbar) */
+.toolbar a:not(.btn) {
     color: var(--accent-strong);
     font-weight: 500;
     text-decoration: none;
 }
 
-.toolbar a:hover {
+.toolbar a:not(.btn):hover {
     text-decoration: underline;
+}
+
+.toolbar .btn:hover {
+    text-decoration: none;
 }
 
 .toolbar-sep {
@@ -639,11 +651,48 @@ button.btn--secondary {
 }
 
 /* ——— KPI grid ——— */
+.kpi-primary {
+    margin: 1.5rem 0 2.25rem;
+}
+
+.kpi-secondary {
+    margin: 0 0 2rem;
+}
+
+.kpi-section__title {
+    font-family: var(--font-display);
+    font-size: 1.05rem;
+    font-weight: 600;
+    margin: 0 0 1rem;
+    letter-spacing: -0.01em;
+    color: var(--muted);
+}
+
+.kpi-section__title--primary {
+    font-size: 1.2rem;
+    color: var(--text);
+}
+
 .kpi-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
     gap: 1rem;
-    margin: 1.5rem 0 2rem;
+    margin: 0;
+}
+
+.kpi-secondary .kpi-grid {
+    margin: 0;
+}
+
+.kpi-grid--primary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1.25rem;
+}
+
+@media (max-width: 640px) {
+    .kpi-grid--primary {
+        grid-template-columns: 1fr;
+    }
 }
 
 .kpi-card {
@@ -662,8 +711,41 @@ button.btn--secondary {
     left: 0;
     width: 3px;
     height: 100%;
-    background: linear-gradient(180deg, var(--accent), var(--violet));
+    background: var(--accent-strong);
     opacity: 0.85;
+}
+
+.kpi-card--primary {
+    padding: 1.5rem 1.65rem;
+    background: var(--surface);
+    border-color: rgba(94, 234, 212, 0.22);
+    box-shadow: var(--shadow);
+}
+
+.kpi-card--primary::after {
+    width: 5px;
+    opacity: 1;
+    background: var(--accent-strong);
+}
+
+.kpi-card--runway-warning {
+    border-color: rgba(251, 191, 36, 0.35);
+}
+
+.kpi-card--runway-warning::after {
+    width: 5px;
+    opacity: 1;
+    background: var(--accent-strong);
+}
+
+.kpi-card--runway-critical {
+    border-color: rgba(251, 113, 133, 0.4);
+}
+
+.kpi-card--runway-critical::after {
+    width: 5px;
+    opacity: 1;
+    background: var(--accent-strong);
 }
 
 .kpi-label {
@@ -673,6 +755,11 @@ button.btn--secondary {
     text-transform: uppercase;
     letter-spacing: 0.06em;
     color: var(--muted);
+}
+
+.kpi-card--primary .kpi-label {
+    font-size: clamp(0.875rem, 1.1vw, 1rem);
+    letter-spacing: 0.05em;
 }
 
 .kpi-value {
@@ -688,6 +775,19 @@ button.btn--secondary {
 }
 
 .kpi-value.negative {
+    color: var(--danger);
+}
+
+.kpi-card--primary .kpi-value {
+    font-size: clamp(1.85rem, 4vw, 2.5rem);
+    margin-top: 0.45rem;
+}
+
+.kpi-value--runway-warning {
+    color: var(--warning);
+}
+
+.kpi-value--runway-critical {
     color: var(--danger);
 }
 
@@ -803,6 +903,8 @@ button.btn--secondary {
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
+    /* Native month/date pickers follow dark UI (fixes light system styling on dark inputs) */
+    color-scheme: dark;
 }
 
 .filters select,
@@ -813,6 +915,31 @@ button.btn--secondary {
     border: 1px solid var(--border);
     color: var(--text);
     border-radius: 6px;
+}
+
+.filters input[type="month"] {
+    color-scheme: dark;
+    accent-color: var(--accent-strong);
+    padding-right: 2rem;
+}
+
+/* Teal calendar glyph aligned with --accent (native icon is dark/low-contrast on our bg) */
+.filters input[type="month"]::-webkit-calendar-picker-indicator {
+    cursor: pointer;
+    width: 1.125rem;
+    height: 1.125rem;
+    padding: 0;
+    margin: 0 0 0 0.2rem;
+    opacity: 1;
+    background-color: var(--accent);
+    -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%23000' d='M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zM5 8V6h14v2H5z'/%3E%3C/svg%3E");
+    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%23000' d='M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zM5 8V6h14v2H5z'/%3E%3C/svg%3E");
+    -webkit-mask-size: contain;
+    mask-size: contain;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-position: center;
+    mask-position: center;
 }
 
 .filters button {

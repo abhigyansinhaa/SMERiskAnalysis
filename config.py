@@ -6,7 +6,8 @@ from urllib.parse import quote_plus
 from dotenv import load_dotenv
 
 # Load .env from project root
-env_path = Path(__file__).resolve().parent / ".env"
+_PROJECT_ROOT = Path(__file__).resolve().parent
+env_path = _PROJECT_ROOT / ".env"
 load_dotenv(env_path)
 
 
@@ -36,6 +37,12 @@ class Config:
 
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_ENGINE_OPTIONS = {"pool_pre_ping": True}
+
+    # Pre-trained Ridge forecast (joblib); generate with scripts/train_forecast_model.py
+    FORECAST_MODEL_PATH = os.environ.get(
+        "FORECAST_MODEL_PATH",
+        str(_PROJECT_ROOT / "models" / "ridge_forecast.pkl"),
+    )
 
     # LLM — OpenRouter (OpenAI-compatible API: https://openrouter.ai/docs)
     OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")

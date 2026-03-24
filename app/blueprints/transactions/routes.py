@@ -10,6 +10,7 @@ from flask_login import current_user, login_required
 from app import db
 from app.blueprints.transactions import transactions_bp
 from app.models import Category, Transaction
+from app.utils.formatting import parse_amount
 
 
 def _get_or_create_categories(user_id: int) -> dict:
@@ -65,7 +66,7 @@ def add():
     if request.method == "POST":
         try:
             date_str = request.form.get("date")
-            amount = float(request.form.get("amount", 0))
+            amount = parse_amount(request.form.get("amount", 0))
             tx_type = request.form.get("type", "expense")
             category_id = request.form.get("category_id") or None
             merchant = (request.form.get("merchant") or "").strip() or None
@@ -109,7 +110,7 @@ def edit(tx_id):
     if request.method == "POST":
         try:
             date_str = request.form.get("date")
-            amount = float(request.form.get("amount", 0))
+            amount = parse_amount(request.form.get("amount", 0))
             tx_type = request.form.get("type", "expense")
             category_id = request.form.get("category_id") or None
             merchant = (request.form.get("merchant") or "").strip() or None

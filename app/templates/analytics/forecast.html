@@ -19,8 +19,8 @@
         <p class="muted">Sales % is applied to a rough income share of the baseline; rent and one-time hit subtract from adjusted net.</p>
         <div class="whatif-inputs">
             <label>Sales Δ % <input type="number" id="sales-pct" step="0.01" value="0" placeholder="-20"></label>
-            <label>Rent change ($) <input type="number" id="rent-change" step="0.01" value="0"></label>
-            <label>One-time expense ($) <input type="number" id="one-time" step="0.01" value="0"></label>
+            <label>Rent change <input type="number" id="rent-change" step="0.01" value="0"></label>
+            <label>One-time expense <input type="number" id="one-time" step="0.01" value="0"></label>
         </div>
         <button type="button" id="run-whatif" class="btn btn--secondary">Apply what-if</button>
         <div id="whatif-result" class="result-box" role="status" aria-live="polite"></div>
@@ -57,13 +57,43 @@
     }
 
     function fmtMoney(n) {
-        return (typeof n === 'number' && !isNaN(n)) ? n.toFixed(2) : 'N/A';
+        if (typeof n !== 'number' || isNaN(n)) return 'N/A';
+        const neg = n < 0;
+        n = Math.abs(n);
+        const s = n.toFixed(2);
+        const [ip, fp] = s.split('.');
+        let d = ip.replace(/^0+(?=\d)/, '') || '0';
+        let grouped;
+        if (d.length <= 3) grouped = d;
+        else {
+            const last3 = d.slice(-3);
+            let head = d.slice(0, -3);
+            const segs = [];
+            while (head.length > 2) {
+                segs.unshift(head.slice(-2));
+                head = head.slice(0, -2);
+            }
+            if (head) segs.unshift(head);
+            segs.push(last3);
+            grouped = segs.join(',');
+        }
+        return (neg ? '-' : '') + grouped + '.' + fp;
     }
 
     function fmtDate(iso) {
         if (!iso) return '';
         const d = new Date(iso + 'T12:00:00');
         return isNaN(d.getTime()) ? iso : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    }
+
+    /** Forecast rows start at as_of+1; this is as_of for labeling the opening balance. */
+    function asOfDateIsoFromDaily(daily) {
+        if (!daily || !daily.length || !daily[0].date) return '';
+        const p = daily[0].date.split('-').map(Number);
+        if (p.length !== 3 || p.some((x) => !Number.isFinite(x))) return '';
+        const dt = new Date(Date.UTC(p[0], p[1] - 1, p[2]));
+        dt.setUTCDate(dt.getUTCDate() - 1);
+        return dt.toISOString().slice(0, 10);
     }
 
     function cumulativeBalances(opening, daily) {
@@ -88,6 +118,10 @@
                 minB = b;
                 minDate = row.date;
             }
+        }
+        // Opening is the running minimum but we never entered b < minB; attribute to as-of (day before first forecast).
+        if (minDate == null && daily && daily.length) {
+            minDate = asOfDateIsoFromDaily(daily);
         }
         return { minBalance: minB, minDate };
     }
@@ -236,7 +270,7 @@
                         callbacks: {
                             label(ctx) {
                                 const v = ctx.parsed.y;
-                                return (ctx.dataset.label || '') + ': ' + (v != null ? v.toFixed(2) : '');
+                                return (ctx.dataset.label || '') + ': ' + (v != null ? fmtMoney(v) : '');
                             }
                         }
                     }
@@ -280,9 +314,9 @@
             const d = await r.json();
             if (d.error) throw new Error(d.error);
             el.innerHTML = `
-            <p><strong>Predicted net (30d):</strong> ${d.predicted_net.toFixed(2)}</p>
-            <p><strong>Predicted balance:</strong> ${d.predicted_balance.toFixed(2)}</p>
-            <p class="muted">MAE: ${d.metrics?.mae != null ? d.metrics.mae.toFixed(2) : 'N/A'} | RMSE: ${d.metrics?.rmse != null ? d.metrics.rmse.toFixed(2) : 'N/A'}</p>
+            <p><strong>Predicted net (30d):</strong> ${fmtMoney(d.predicted_net)}</p>
+            <p><strong>Predicted balance:</strong> ${fmtMoney(d.predicted_balance)}</p>
+            <p class="muted">MAE: ${d.metrics?.mae != null ? fmtMoney(d.metrics.mae) : 'N/A'} | RMSE: ${d.metrics?.rmse != null ? fmtMoney(d.metrics.rmse) : 'N/A'}</p>
         `;
             updateVisualizationFromBaseline(d, null);
         } catch (e) {
@@ -311,9 +345,9 @@
             if (d.error) throw new Error(d.error);
             const b = d.baseline || {};
             el.innerHTML = `
-            <p><strong>Baseline net:</strong> ${b.predicted_net != null ? b.predicted_net.toFixed(2) : 'N/A'}</p>
-            <p><strong>Adjusted net:</strong> ${d.adjusted_net.toFixed(2)}</p>
-            <p><strong>Adjusted balance:</strong> ${d.adjusted_balance.toFixed(2)}</p>
+            <p><strong>Baseline net:</strong> ${b.predicted_net != null ? fmtMoney(b.predicted_net) : 'N/A'}</p>
+            <p><strong>Adjusted net:</strong> ${fmtMoney(d.adjusted_net)}</p>
+            <p><strong>Adjusted balance:</strong> ${fmtMoney(d.adjusted_balance)}</p>
         `;
             const daily = b.daily_forecast || [];
             const opening = b.opening_balance != null

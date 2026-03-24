@@ -1,16 +1,55 @@
 """Regression-based cashflow forecasting."""
 import json
 from datetime import date, timedelta
+from pathlib import Path
 from typing import Any
 
 import numpy as np
 import pandas as pd
-from sklearn.linear_model import Ridge
+from joblib import load
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 from sqlalchemy import func
 
 from app import db
 from app.models import Forecast, Transaction
+from app.services.forecast_features import FEATURE_COLUMNS, engineer_features
+
+_forecast_model: Any = None
+_loaded_model_path: str | None = None
+
+
+def reset_forecast_model_cache() -> None:
+    """Clear cached Ridge model (for tests or after swapping artifact)."""
+    global _forecast_model, _loaded_model_path
+    _forecast_model = None
+    _loaded_model_path = None
+
+
+def _resolve_forecast_model_path() -> str:
+    try:
+        from flask import current_app
+
+        return str(current_app.config["FORECAST_MODEL_PATH"])
+    except RuntimeError:
+        from config import Config
+
+        return Config.FORECAST_MODEL_PATH
+
+
+def get_forecast_model() -> Any:
+    """Load pre-trained Ridge once per path (joblib)."""
+    global _forecast_model, _loaded_model_path
+    path = _resolve_forecast_model_path()
+    if _forecast_model is not None and _loaded_model_path == path:
+        return _forecast_model
+    p = Path(path)
+    if not p.is_file():
+        raise FileNotFoundError(
+            f"Forecast model not found at {p.resolve()}. Run: python scripts/train_forecast_model.py"
+        )
+    _forecast_model = load(p)
+    _loaded_model_path = path
+    return _forecast_model
 
 
 def _build_daily_series(user_id: int, start: date, end: date) -> pd.DataFrame:
@@ -43,26 +82,13 @@ def _build_daily_series(user_id: int, start: date, end: date) -> pd.DataFrame:
     return pd.DataFrame(data)
 
 
-def _engineer_features(df: pd.DataFrame) -> pd.DataFrame:
-    """Add lag, rolling, and time features."""
-    df = df.copy()
-    df["lag1"] = df["net"].shift(1)
-    df["lag7"] = df["net"].shift(7)
-    df["lag14"] = df["net"].shift(14)
-    df["roll7"] = df["net"].rolling(7, min_periods=1).mean().shift(1)
-    df["roll14"] = df["net"].rolling(14, min_periods=1).mean().shift(1)
-    df["dow"] = pd.to_datetime(df["date"]).dt.dayofweek
-    df["dom"] = pd.to_datetime(df["date"]).dt.day
-    return df
-
-
 def run_forecast(
     user_id: int,
     horizon_days: int = 30,
     as_of_date: date | None = None,
 ) -> dict[str, Any]:
     """
-    Run Ridge regression forecast. Returns predicted net, balance, and metrics.
+    Run Ridge regression forecast using a pre-trained model. Returns predicted net, balance, and metrics.
     """
     as_of_date = as_of_date or date.today()
     lookback = 90
@@ -79,7 +105,7 @@ def run_forecast(
             "metrics": {"mae": None, "rmse": None, "note": "Insufficient data"},
         }
 
-    df = _engineer_features(df)
+    df = engineer_features(df)
     df = df.dropna(subset=["lag1", "lag7", "lag14", "roll7", "roll14"])
 
     if len(df) < 7:
@@ -92,21 +118,32 @@ def run_forecast(
             "metrics": {"mae": None, "rmse": None, "note": "Insufficient data after feature engineering"},
         }
 
-    features = ["lag1", "lag7", "lag14", "roll7", "roll14", "dow", "dom"]
-    X = df[features]
+    try:
+        model = get_forecast_model()
+    except FileNotFoundError as e:
+        opening = _get_balance_at(user_id, as_of_date)
+        return {
+            "predicted_net": 0,
+            "predicted_balance": opening,
+            "opening_balance": opening,
+            "daily_forecast": [],
+            "metrics": {"mae": None, "rmse": None, "note": str(e)},
+        }
+
+    X = df[FEATURE_COLUMNS]
     y = df["net"]
 
-    # Time-based train/test: last 14 days for test
+    # Time-based train/test: last 14 days for test (metrics for global model on user holdout)
     split = max(7, len(df) - 14)
-    X_train, X_test = X.iloc[:split], X.iloc[split:]
-    y_train, y_test = y.iloc[:split], y.iloc[split:]
+    X_test = X.iloc[split:]
+    y_test = y.iloc[split:]
 
-    model = Ridge(alpha=1.0, random_state=42)
-    model.fit(X_train, y_train)
-
-    y_pred_test = model.predict(X_test)
-    mae = mean_absolute_error(y_test, y_pred_test)
-    rmse = np.sqrt(mean_squared_error(y_test, y_pred_test))
+    if len(X_test) == 0:
+        mae = rmse = None
+    else:
+        y_pred_test = model.predict(X_test)
+        mae = mean_absolute_error(y_test, y_pred_test)
+        rmse = float(np.sqrt(mean_squared_error(y_test, y_pred_test)))
 
     # Roll forward: predict next horizon_days
     current_balance = _get_balance_at(user_id, as_of_date)
@@ -132,6 +169,7 @@ def run_forecast(
 
     predicted_balance = current_balance + cumulative_net
 
+    metrics_payload = {"mae": mae, "rmse": rmse}
     # Store forecast
     f = Forecast(
         user_id=user_id,
@@ -140,7 +178,7 @@ def run_forecast(
         predicted_net=cumulative_net,
         predicted_balance=predicted_balance,
         model_name="ridge",
-        metrics_json=json.dumps({"mae": mae, "rmse": rmse}),
+        metrics_json=json.dumps(metrics_payload),
     )
     db.session.add(f)
     db.session.commit()
@@ -150,7 +188,7 @@ def run_forecast(
         "predicted_balance": predicted_balance,
         "opening_balance": current_balance,
         "daily_forecast": daily_forecast,
-        "metrics": {"mae": mae, "rmse": rmse},
+        "metrics": metrics_payload,
     }
 
 

@@ -28,6 +28,7 @@ def create_app(config_name: str | None = None) -> Flask:
         return db.session.get(User, int(user_id))
 
     # Register blueprints
+    from app.blueprints.api import api_v1_bp
     from app.blueprints.advisor import advisor_bp
     from app.blueprints.analytics import analytics_bp
     from app.blueprints.auth import auth_bp
@@ -37,6 +38,25 @@ def create_app(config_name: str | None = None) -> Flask:
     app.register_blueprint(transactions_bp, url_prefix="/transactions")
     app.register_blueprint(analytics_bp)
     app.register_blueprint(advisor_bp, url_prefix="/advisor")
+    app.register_blueprint(api_v1_bp, url_prefix="/api/v1")
+
+    from app.utils.formatting import format_indian_amount
+
+    @app.template_filter("inr")
+    def inr_filter(value, decimals=2):
+        try:
+            d = int(decimals)
+        except (TypeError, ValueError):
+            d = 2
+        return format_indian_amount(value, decimals=d, signed=False)
+
+    @app.template_filter("inr_signed")
+    def inr_signed_filter(value, decimals=2):
+        try:
+            d = int(decimals)
+        except (TypeError, ValueError):
+            d = 2
+        return format_indian_amount(value, decimals=d, signed=True)
 
     @app.route("/")
     def index():

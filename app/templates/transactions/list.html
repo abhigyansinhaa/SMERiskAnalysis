@@ -49,7 +49,7 @@
             <td>{{ t.date.strftime('%Y-%m-%d') }}</td>
             <td>{{ t.type }}</td>
             <td class="{{ 'income' if t.type=='income' else 'expense' }}">
-                {{ '%+.2f'|format(t.amount if t.type=='income' else -t.amount) }}
+                {{ (t.amount if t.type=='income' else -t.amount)|inr_signed }}
             </td>
             <td>{{ t.category.name if t.category else '—' }}</td>
             <td>{{ t.merchant or '—' }}</td>
