@@ -1,32 +1,23 @@
-"""Smoke tests for /api/v1 JSON API (no DB required for unauthenticated checks)."""
-import unittest
-
-from app import create_app
+"""API v1 smoke tests."""
+from __future__ import annotations
 
 
-class TestApiV1Unauthorized(unittest.TestCase):
-    def setUp(self):
-        self.app = create_app()
-        self.client = self.app.test_client()
-
-    def test_me_returns_401_without_session(self):
-        rv = self.client.get("/api/v1/me")
-        self.assertEqual(rv.status_code, 401)
-        self.assertIn(b"Unauthorized", rv.data)
-
-    def test_dashboard_returns_401_without_session(self):
-        rv = self.client.get("/api/v1/dashboard")
-        self.assertEqual(rv.status_code, 401)
-
-    def test_routes_registered(self):
-        rules = {r.rule for r in self.app.url_map.iter_rules()}
-        self.assertIn("/api/v1/me", rules)
-        self.assertIn("/api/v1/dashboard", rules)
-        self.assertIn("/api/v1/transactions", rules)
-        self.assertIn("/api/v1/forecast/run", rules)
-        self.assertIn("/api/v1/forecast/whatif", rules)
-        self.assertIn("/api/v1/advisor/summary", rules)
+def test_me_returns_401_without_session(client):
+    rv = client.get("/api/v1/me")
+    assert rv.status_code == 401
+    assert b"Unauthorized" in rv.data
 
 
-if __name__ == "__main__":
-    unittest.main()
+def test_routes_registered(client):
+    rules = {r.rule for r in client.application.url_map.iter_rules()}
+    assert "/api/v1/me" in rules
+    assert "/api/v1/dashboard" in rules
+    assert "/api/v1/transactions" in rules
+    assert "/api/v1/forecast/run" in rules
+    assert "/api/v1/forecast/whatif" in rules
+    assert "/api/v1/advisor/summary" in rules
+
+
+def test_docs_redirect(client):
+    rv = client.get("/api/v1/docs", follow_redirects=False)
+    assert rv.status_code in (301, 302, 308)

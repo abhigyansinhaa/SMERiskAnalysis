@@ -16,6 +16,9 @@ def login():
         password = request.form.get("password", "")
         user = User.query.filter_by(email=email).first()
         if user and user.check_password(password):
+            if user.needs_password_upgrade():
+                user.set_password(password)
+                db.session.commit()
             login_user(user)
             next_url = request.args.get("next") or url_for("analytics.dashboard")
             return redirect(next_url)

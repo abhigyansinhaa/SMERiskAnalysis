@@ -1,4 +1,6 @@
-"""Regression-based cashflow forecasting."""
+"""Cashflow forecasting: LightGBM quantile bundle (preferred) with sliding-window multi-step."""
+from __future__ import annotations
+
 import json
 from datetime import date, timedelta
 from pathlib import Path
@@ -7,22 +9,25 @@ from typing import Any
 import numpy as np
 import pandas as pd
 from joblib import load
-from sklearn.metrics import mean_absolute_error, mean_squared_error
 from sqlalchemy import func
 
 from app import db
 from app.models import Forecast, Transaction
-from app.services.forecast_features import FEATURE_COLUMNS, engineer_features
+from app.services.forecast_features import (
+    FEATURE_COLUMNS,
+    engineer_features,
+    feature_vector_for_date,
+)
 
-_forecast_model: Any = None
-_loaded_model_path: str | None = None
+_forecast_bundle: Any = None
+_loaded_bundle_path: str | None = None
 
 
 def reset_forecast_model_cache() -> None:
-    """Clear cached Ridge model (for tests or after swapping artifact)."""
-    global _forecast_model, _loaded_model_path
-    _forecast_model = None
-    _loaded_model_path = None
+    """Clear cached model bundle (tests or after swapping artifact)."""
+    global _forecast_bundle, _loaded_bundle_path
+    _forecast_bundle = None
+    _loaded_bundle_path = None
 
 
 def _resolve_forecast_model_path() -> str:
@@ -36,20 +41,20 @@ def _resolve_forecast_model_path() -> str:
         return Config.FORECAST_MODEL_PATH
 
 
-def get_forecast_model() -> Any:
-    """Load pre-trained Ridge once per path (joblib)."""
-    global _forecast_model, _loaded_model_path
+def get_forecast_bundle() -> dict[str, Any]:
+    """Load joblib bundle once per path."""
+    global _forecast_bundle, _loaded_bundle_path
     path = _resolve_forecast_model_path()
-    if _forecast_model is not None and _loaded_model_path == path:
-        return _forecast_model
+    if _forecast_bundle is not None and _loaded_bundle_path == path:
+        return _forecast_bundle
     p = Path(path)
     if not p.is_file():
         raise FileNotFoundError(
-            f"Forecast model not found at {p.resolve()}. Run: python scripts/train_forecast_model.py"
+            f"Forecast bundle not found at {p.resolve()}. Run: python scripts/train_forecast_model.py"
         )
-    _forecast_model = load(p)
-    _loaded_model_path = path
-    return _forecast_model
+    _forecast_bundle = load(p)
+    _loaded_bundle_path = path
+    return _forecast_bundle
 
 
 def _build_daily_series(user_id: int, start: date, end: date) -> pd.DataFrame:
@@ -62,7 +67,7 @@ def _build_daily_series(user_id: int, start: date, end: date) -> pd.DataFrame:
         )
         .all()
     )
-    by_date = {}
+    by_date: dict[date, dict[str, float]] = {}
     for r in rows:
         d = r.date
         if d not in by_date:
@@ -82,36 +87,50 @@ def _build_daily_series(user_id: int, start: date, end: date) -> pd.DataFrame:
     return pd.DataFrame(data)
 
 
+def _country_from_config() -> str:
+    try:
+        from flask import current_app
+
+        return str(current_app.config.get("HOLIDAY_COUNTRY", "IN"))
+    except RuntimeError:
+        from config import Config
+
+        return Config.HOLIDAY_COUNTRY
+
+
 def run_forecast(
     user_id: int,
     horizon_days: int = 30,
     as_of_date: date | None = None,
 ) -> dict[str, Any]:
     """
-    Run Ridge regression forecast using a pre-trained model. Returns predicted net, balance, and metrics.
+    Quantile LightGBM forecast with sliding-window multi-step rollout.
+    Returns predicted net (median path), balance, daily series with low/high bands.
     """
     as_of_date = as_of_date or date.today()
-    lookback = 90
+    lookback = 400
     start = as_of_date - timedelta(days=lookback)
     df = _build_daily_series(user_id, start, as_of_date)
+    country = _country_from_config()
 
-    if len(df) < 14:
+    if len(df) < 40:
         opening = _get_balance_at(user_id, as_of_date)
         return {
-            "predicted_net": 0,
+            "predicted_net": 0.0,
             "predicted_balance": opening,
             "opening_balance": opening,
             "daily_forecast": [],
             "metrics": {"mae": None, "rmse": None, "note": "Insufficient data"},
         }
 
-    df = engineer_features(df)
-    df = df.dropna(subset=["lag1", "lag7", "lag14", "roll7", "roll14"])
+    df = engineer_features(df, country=country)
+    req = ["lag1", "lag7", "lag14", "lag28", "roll7_mean"]
+    df = df.dropna(subset=req)
 
-    if len(df) < 7:
+    if len(df) < 35:
         opening = _get_balance_at(user_id, as_of_date)
         return {
-            "predicted_net": 0,
+            "predicted_net": 0.0,
             "predicted_balance": opening,
             "opening_balance": opening,
             "daily_forecast": [],
@@ -119,65 +138,76 @@ def run_forecast(
         }
 
     try:
-        model = get_forecast_model()
+        bundle = get_forecast_bundle()
     except FileNotFoundError as e:
         opening = _get_balance_at(user_id, as_of_date)
         return {
-            "predicted_net": 0,
+            "predicted_net": 0.0,
             "predicted_balance": opening,
             "opening_balance": opening,
             "daily_forecast": [],
             "metrics": {"mae": None, "rmse": None, "note": str(e)},
         }
 
-    X = df[FEATURE_COLUMNS]
-    y = df["net"]
+    models: dict[str, Any] = bundle.get("models") or {}
+    feats = bundle.get("feature_columns") or FEATURE_COLUMNS
+    if not models or "q050" not in models:
+        opening = _get_balance_at(user_id, as_of_date)
+        return {
+            "predicted_net": 0.0,
+            "predicted_balance": opening,
+            "opening_balance": opening,
+            "daily_forecast": [],
+            "metrics": {"mae": None, "rmse": None, "note": "Invalid forecast bundle (missing q050)"},
+        }
 
-    # Time-based train/test: last 14 days for test (metrics for global model on user holdout)
-    split = max(7, len(df) - 14)
-    X_test = X.iloc[split:]
-    y_test = y.iloc[split:]
+    X_all = df[feats].to_numpy(dtype=float)
+    y_all = df["net"].to_numpy(dtype=float)
+    split = max(20, len(df) - 14)
+    X_test = X_all[split:]
+    y_test = y_all[split:]
+    mae_v = rmse_v = None
+    if len(X_test) > 0 and "q050" in models:
+        y_pred = models["q050"].predict(X_test)
+        mae_v = float(np.mean(np.abs(y_test - y_pred)))
+        rmse_v = float(np.sqrt(np.mean((y_test - y_pred) ** 2)))
 
-    if len(X_test) == 0:
-        mae = rmse = None
-    else:
-        y_pred_test = model.predict(X_test)
-        mae = mean_absolute_error(y_test, y_pred_test)
-        rmse = float(np.sqrt(mean_squared_error(y_test, y_pred_test)))
-
-    # Roll forward: predict next horizon_days
+    history = [float(x) for x in df["net"].tolist()]
     current_balance = _get_balance_at(user_id, as_of_date)
-    daily_forecast = []
-    last_row = df.iloc[-1]
-    lag1, lag7, lag14 = last_row["net"], df["net"].iloc[-7] if len(df) >= 7 else 0, df["net"].iloc[-14] if len(df) >= 14 else 0
-    roll7 = df["net"].tail(7).mean()
-    roll14 = df["net"].tail(14).mean()
+    cumulative_net = 0.0
+    daily_forecast: list[dict[str, Any]] = []
 
-    cumulative_net = 0
     for i in range(horizon_days):
         d = as_of_date + timedelta(days=i + 1)
-        dow = d.weekday()
-        dom = d.day
-        X_next = np.array([[lag1, lag7, lag14, roll7, roll14, dow, dom]])
-        pred_net = float(model.predict(X_next)[0])
-        cumulative_net += pred_net
-        daily_forecast.append({"date": d.isoformat(), "net": pred_net})
-        # Update lags for next iteration (simplified)
-        lag1, lag7, lag14 = pred_net, lag1, lag7
-        roll7 = (roll7 * 6 + pred_net) / 7
-        roll14 = (roll14 * 13 + pred_net) / 14
+        x_vec = feature_vector_for_date(history, d, country=country)
+        x_map = dict(zip(FEATURE_COLUMNS, x_vec, strict=True))
+        x_ordered = np.array([x_map[c] for c in feats], dtype=np.float64).reshape(1, -1)
+        q10 = float(models.get("q010").predict(x_ordered)[0]) if models.get("q010") else 0.0
+        q50 = float(models["q050"].predict(x_ordered)[0])
+        q90 = float(models.get("q090").predict(x_ordered)[0]) if models.get("q090") else q50
+        cumulative_net += q50
+        daily_forecast.append(
+            {
+                "date": d.isoformat(),
+                "net": q50,
+                "net_low": q10,
+                "net_high": q90,
+            }
+        )
+        history.append(q50)
+        if len(history) > 400:
+            history = history[-400:]
 
     predicted_balance = current_balance + cumulative_net
+    metrics_payload = {"mae": mae_v, "rmse": rmse_v}
 
-    metrics_payload = {"mae": mae, "rmse": rmse}
-    # Store forecast
     f = Forecast(
         user_id=user_id,
         horizon_days=horizon_days,
         as_of_date=as_of_date,
         predicted_net=cumulative_net,
         predicted_balance=predicted_balance,
-        model_name="ridge",
+        model_name="lgbm_quantile",
         metrics_json=json.dumps(metrics_payload),
     )
     db.session.add(f)
@@ -223,20 +253,12 @@ def run_whatif(
     rent_change: float = 0,
     one_time_expense: float = 0,
 ) -> dict[str, Any]:
-    """
-    Apply scenario adjustments to baseline forecast.
-    sales_pct_change: e.g. -0.2 for -20% sales
-    rent_change: absolute change in rent (e.g. +500)
-    one_time_expense: one-time expense to add
-    """
+    """Apply scenario adjustments to baseline forecast."""
     baseline = run_forecast(user_id, horizon_days=30)
 
-    # Simplified: adjust predicted_net by scenario
-    adj_net = baseline["predicted_net"]
-    # Approximate: assume some fraction of predicted net is income
-    # For demo: apply sales_pct to a rough income share
-    income_share = 0.7  # rough
-    adj_net += baseline["predicted_net"] * income_share * sales_pct_change
+    adj_net = float(baseline.get("predicted_net") or 0)
+    income_share = 0.7
+    adj_net += float(baseline.get("predicted_net") or 0) * income_share * sales_pct_change
     adj_net -= rent_change
     adj_net -= one_time_expense
 
@@ -250,11 +272,22 @@ def run_whatif(
         adjusted_daily_forecast: list[dict[str, Any]] = []
     elif abs(baseline_net) > epsilon:
         factor = adj_net / baseline_net
-        adjusted_daily_forecast = [{"date": row["date"], "net": float(row["net"]) * factor} for row in daily]
+        adjusted_daily_forecast = [
+            {
+                "date": row["date"],
+                "net": float(row["net"]) * factor,
+                "net_low": float(row.get("net_low", row["net"])) * factor,
+                "net_high": float(row.get("net_high", row["net"])) * factor,
+            }
+            for row in daily
+        ]
     else:
         n = len(daily)
         uniform = (adj_net / n) if n else 0.0
-        adjusted_daily_forecast = [{"date": row["date"], "net": uniform} for row in daily]
+        adjusted_daily_forecast = [
+            {"date": row["date"], "net": uniform, "net_low": uniform, "net_high": uniform}
+            for row in daily
+        ]
 
     return {
         "baseline": baseline,

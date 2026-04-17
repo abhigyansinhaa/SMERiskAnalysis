@@ -1,53 +1,66 @@
-"""Tests for pre-trained Ridge forecast artifact loading."""
+"""Forecast bundle loading and feature engineering."""
+from __future__ import annotations
+
 import tempfile
-import unittest
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import pytest
 from app import create_app
-from app.services.forecast import get_forecast_model, reset_forecast_model_cache
+from app.services.forecast import get_forecast_bundle, reset_forecast_model_cache
 from app.services.forecast_features import FEATURE_COLUMNS, engineer_features
 from joblib import dump
-from sklearn.linear_model import Ridge
+from lightgbm import LGBMRegressor
 
 
-class TestForecastModel(unittest.TestCase):
-    def tearDown(self) -> None:
-        reset_forecast_model_cache()
+@pytest.fixture(autouse=True)
+def _reset_bundle_cache():
+    reset_forecast_model_cache()
+    yield
+    reset_forecast_model_cache()
 
-    def test_joblib_load_predict_matches_feature_count(self) -> None:
-        rng = np.random.default_rng(0)
-        X = rng.standard_normal((30, len(FEATURE_COLUMNS)))
-        y = rng.standard_normal(30)
-        model = Ridge(alpha=1.0, random_state=42)
-        model.fit(X, y)
 
-        with tempfile.NamedTemporaryFile(suffix=".pkl", delete=False) as tmp:
-            path = tmp.name
-        try:
-            dump(model, path)
-            app = create_app()
-            with app.app_context():
-                app.config["FORECAST_MODEL_PATH"] = path
-                loaded = get_forecast_model()
-            out = loaded.predict(np.ones((1, len(FEATURE_COLUMNS))))
-            self.assertEqual(out.shape, (1,))
-        finally:
-            Path(path).unlink(missing_ok=True)
+def test_engineer_features_columns() -> None:
+    df = engineer_features(
+        pd.DataFrame(
+            {
+                "date": pd.date_range("2024-01-01", periods=40, freq="D"),
+                "net": np.arange(40, dtype=float),
+            }
+        ),
+        country="IN",
+    )
+    for col in FEATURE_COLUMNS:
+        assert col in df.columns
 
-    def test_engineer_features_columns(self) -> None:
-        df = engineer_features(
-            pd.DataFrame(
-                {
-                    "date": pd.date_range("2024-01-01", periods=20, freq="D"),
-                    "net": np.arange(20, dtype=float),
-                }
-            )
+
+def test_joblib_bundle_load_predict() -> None:
+    rng = np.random.default_rng(0)
+    X = rng.standard_normal((80, len(FEATURE_COLUMNS)))
+    y = rng.standard_normal(80)
+    models = {}
+    for alpha, key in [(0.1, "q010"), (0.5, "q050"), (0.9, "q090")]:
+        m = LGBMRegressor(
+            objective="quantile",
+            alpha=alpha,
+            n_estimators=20,
+            verbosity=-1,
+            random_state=42,
         )
-        for col in FEATURE_COLUMNS:
-            self.assertIn(col, df.columns)
+        m.fit(X, y)
+        models[key] = m
+    bundle = {"version": 2, "models": models, "feature_columns": FEATURE_COLUMNS, "country": "IN"}
 
-
-if __name__ == "__main__":
-    unittest.main()
+    with tempfile.NamedTemporaryFile(suffix=".pkl", delete=False) as tmp:
+        path = tmp.name
+    try:
+        dump(bundle, path)
+        app = create_app("testing")
+        with app.app_context():
+            app.config["FORECAST_MODEL_PATH"] = path
+            loaded = get_forecast_bundle()
+        out = loaded["models"]["q050"].predict(np.ones((1, len(FEATURE_COLUMNS))))
+        assert out.shape == (1,)
+    finally:
+        Path(path).unlink(missing_ok=True)

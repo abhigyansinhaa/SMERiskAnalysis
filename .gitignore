@@ -8,3 +8,7 @@ venv/
 *.db
 .DS_Store
 sample_data
+mlruns/
+artifacts/
+_alembic_tmp.db
+models/forecast_bundle_candidate.pkl

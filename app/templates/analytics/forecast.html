@@ -3,7 +3,7 @@
 {% block content %}
 <header class="page-header">
     <h1>Forecast &amp; what-if</h1>
-    <p class="page-header__meta">Ridge regression on daily net series · scenario adjusts baseline net</p>
+    <p class="page-header__meta">LightGBM quantile forecast on daily net · 10th–90th percentile band · scenario adjusts baseline net</p>
 </header>
 
 <div class="forecast-controls-row">
@@ -180,7 +180,7 @@
             });
         }
 
-        let caveat = 'Short-horizon Ridge forecast—use as a guide alongside your judgment.';
+        let caveat = 'Short-horizon quantile forecast—use as a guide alongside your judgment.';
         if (metrics && metrics.mae != null && daily.length) {
             const avgAbs = daily.reduce((s, r) => s + Math.abs(r.net), 0) / daily.length;
             if (avgAbs > EPS) {
@@ -208,6 +208,24 @@
         document.getElementById('forecast-viz-summary').textContent = summary;
     }
 
+    function cumulativeBand(opening, daily) {
+        let m = opening, lo = opening, hi = opening;
+        const labels = [], med = [], low = [], high = [];
+        for (const row of daily) {
+            const net = row.net || 0;
+            const nl = row.net_low != null ? row.net_low : net;
+            const nh = row.net_high != null ? row.net_high : net;
+            m += net;
+            lo += nl;
+            hi += nh;
+            labels.push(row.date);
+            med.push(m);
+            low.push(lo);
+            high.push(hi);
+        }
+        return { labels, med, low, high };
+    }
+
     function renderChart(baselineDaily, opening, scenarioDaily) {
         if (!baselineDaily || !baselineDaily.length) {
             setVizVisible(false);
@@ -216,6 +234,7 @@
         setVizVisible(true);
         destroyForecastChart();
 
+        const band = cumulativeBand(opening, baselineDaily);
         const bl = cumulativeBalances(opening, baselineDaily);
         const accent = cssColor('--accent', '#5eead4');
         const violet = cssColor('--violet', '#a78bfa');
@@ -223,17 +242,39 @@
         const text = cssColor('--text', '#e8edf4');
         const grid = cssColor('--border', '#2a3548');
 
-        const datasets = [{
-            label: 'Baseline',
+        const hasBand = baselineDaily.some((r) => r.net_low != null && r.net_high != null);
+        const datasets = [];
+        if (hasBand) {
+            datasets.push({
+                label: 'Upper (p90)',
+                data: band.high,
+                borderColor: 'transparent',
+                backgroundColor: 'transparent',
+                fill: false,
+                pointRadius: 0,
+                tension: 0.2
+            });
+            datasets.push({
+                label: 'Band',
+                data: band.low,
+                borderColor: 'transparent',
+                backgroundColor: 'rgba(94, 234, 212, 0.12)',
+                fill: '-1',
+                pointRadius: 0,
+                tension: 0.2
+            });
+        }
+        datasets.push({
+            label: 'Baseline (p50)',
             data: bl.balances,
             borderColor: accent,
-            backgroundColor: 'rgba(94, 234, 212, 0.08)',
-            fill: true,
+            backgroundColor: 'rgba(94, 234, 212, 0.06)',
+            fill: !hasBand,
             tension: 0.2,
             pointRadius: 0,
             pointHitRadius: 6,
             borderWidth: 2
-        }];
+        });
 
         if (scenarioDaily && scenarioDaily.length === baselineDaily.length) {
             const sc = cumulativeBalances(opening, scenarioDaily);
@@ -264,7 +305,10 @@
                 plugins: {
                     legend: {
                         display: datasets.length > 1,
-                        labels: { color: text }
+                        labels: {
+                            color: text,
+                            filter: (item) => item.text !== 'Upper (p90)' && item.text !== 'Band',
+                        },
                     },
                     tooltip: {
                         callbacks: {

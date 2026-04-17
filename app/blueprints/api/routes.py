@@ -1,8 +1,8 @@
 """
 REST-style JSON endpoints under /api/v1.
 
-Auth: Flask-Login session cookie (log in via POST /login in the browser, or use a client
-that stores and sends the session cookie). Returns 401 JSON if not authenticated.
+Auth: Flask-Login session cookie. Returns 401 JSON if not authenticated.
+OpenAPI: /api/v1/swagger (Swagger UI), /api/v1/openapi.json
 """
 from __future__ import annotations
 
@@ -16,6 +16,8 @@ from flask_login import current_user
 from app import db
 from app.blueprints.api import api_v1_bp
 from app.models import Category, Transaction
+from app.openapi import spec
+from app.schemas.api_v1 import ForecastRunIn, TransactionCreateIn, WhatIfIn
 from app.services.advisor import generate_summary
 from app.services.analytics import (
     check_and_create_alerts,
@@ -144,27 +146,25 @@ def list_transactions():
 
 @api_v1_bp.route("/transactions", methods=["POST"])
 @api_login_required
+@spec.validate(json=TransactionCreateIn, tags=["transactions"])
 def create_transaction():
     uid = current_user.id
     _get_or_create_categories(uid)
+    data: TransactionCreateIn = request.context.json  # type: ignore[attr-defined]
 
-    data = request.get_json(silent=True) or {}
     try:
-        date_str = data.get("date")
-        amount = parse_amount(data.get("amount", 0))
-        tx_type = data.get("type", "expense")
-        if tx_type not in ("income", "expense"):
-            return jsonify({"error": "type must be income or expense"}), 400
-        category_id = data.get("category_id")
-        merchant = (data.get("merchant") or "").strip() or None
-        notes = (data.get("notes") or "").strip() or None
+        amount = parse_amount(data.amount)
+        tx_type = data.type
+        category_id = data.category_id
+        merchant = (data.merchant or "").strip() or None
+        notes = (data.notes or "").strip() or None
+        date_str = data.date
 
         if not date_str:
-            return jsonify({"error": "date is required (YYYY-MM-DD)"}), 400
+            return jsonify({"error": "date is required (YYYY-MM-DD)"}), 422
 
         tx_date = datetime.strptime(str(date_str)[:10], "%Y-%m-%d").date()
         if category_id is not None:
-            category_id = int(category_id)
             cat = Category.query.filter_by(id=category_id, user_id=uid).first()
             if not cat:
                 return jsonify({"error": "Invalid category_id"}), 400
@@ -192,10 +192,11 @@ def create_transaction():
 
 @api_v1_bp.route("/forecast/run", methods=["POST"])
 @api_login_required
+@spec.validate(json=ForecastRunIn, tags=["forecast"])
 def forecast_run():
     try:
-        payload = request.get_json(silent=True) or {}
-        horizon = int(payload.get("horizon_days", 30))
+        body: ForecastRunIn = request.context.json  # type: ignore[attr-defined]
+        horizon = body.horizon_days
         result = run_forecast(current_user.id, horizon_days=horizon)
         return jsonify(result)
     except Exception as e:
@@ -204,12 +205,13 @@ def forecast_run():
 
 @api_v1_bp.route("/forecast/whatif", methods=["POST"])
 @api_login_required
+@spec.validate(json=WhatIfIn, tags=["forecast"])
 def forecast_whatif():
     try:
-        data = request.get_json(silent=True) or {}
-        sales_pct = float(data.get("sales_pct_change", 0))
-        rent_change = parse_amount(data.get("rent_change", 0))
-        one_time = parse_amount(data.get("one_time_expense", 0))
+        data: WhatIfIn = request.context.json  # type: ignore[attr-defined]
+        sales_pct = float(data.sales_pct_change)
+        rent_change = parse_amount(data.rent_change)
+        one_time = parse_amount(data.one_time_expense)
         result = run_whatif(
             current_user.id,
             sales_pct_change=sales_pct,

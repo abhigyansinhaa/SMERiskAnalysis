@@ -13,9 +13,10 @@ def create_app(config_name: str | None = None) -> Flask:
     config_name = config_name or "default"
     app = Flask(__name__)
     cfg = config_by_name[config_name]
-    app.config.from_object(cfg)
-    # SQLALCHEMY_DATABASE_URI is a property - evaluate via instance
-    app.config["SQLALCHEMY_DATABASE_URI"] = cfg().SQLALCHEMY_DATABASE_URI
+    inst = cfg()
+    app.config.from_object(inst)
+    # SQLALCHEMY_DATABASE_URI is a property - evaluate explicitly
+    app.config["SQLALCHEMY_DATABASE_URI"] = inst.SQLALCHEMY_DATABASE_URI
 
     db.init_app(app)
     login_manager.init_app(app)
@@ -28,9 +29,9 @@ def create_app(config_name: str | None = None) -> Flask:
         return db.session.get(User, int(user_id))
 
     # Register blueprints
-    from app.blueprints.api import api_v1_bp
     from app.blueprints.advisor import advisor_bp
     from app.blueprints.analytics import analytics_bp
+    from app.blueprints.api import api_v1_bp
     from app.blueprints.auth import auth_bp
     from app.blueprints.transactions import transactions_bp
 
@@ -66,5 +67,22 @@ def create_app(config_name: str | None = None) -> Flask:
         if current_user.is_authenticated:
             return redirect(url_for("analytics.dashboard"))
         return render_template("home.html")
+
+    # OpenAPI / Swagger (Spectree)
+    from app.openapi import spec
+
+    spec.register(app)
+
+    @app.route("/api/v1/docs")
+    def api_v1_docs_redirect():
+        from flask import redirect
+
+        return redirect("/api/v1/swagger")
+
+    # Optional nightly retrain scheduler
+    if app.config.get("ENABLE_SCHEDULER"):
+        from app.scheduler import init_scheduler
+
+        init_scheduler(app)
 
     return app

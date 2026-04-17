@@ -6,6 +6,7 @@ from datetime import datetime
 
 from flask import flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
+from sqlalchemy.orm import joinedload
 
 from app import db
 from app.blueprints.transactions import transactions_bp
@@ -37,7 +38,11 @@ def _get_or_create_categories(user_id: int) -> dict:
 @login_required
 def list_transactions():
     """List transactions with optional filters."""
-    q = Transaction.query.filter_by(user_id=current_user.id).order_by(Transaction.date.desc())
+    q = (
+        Transaction.query.options(joinedload(Transaction.category))
+        .filter_by(user_id=current_user.id)
+        .order_by(Transaction.date.desc())
+    )
     type_filter = request.args.get("type")
     if type_filter in ("income", "expense"):
         q = q.filter_by(type=type_filter)

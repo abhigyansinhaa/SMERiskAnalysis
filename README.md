@@ -1,66 +1,147 @@
 # SME Cashflow & Risk Advisor
 
-Flask + MySQL web app for SMEs to track income/expenses, forecast cashflow with regression, run what-if scenarios, and get grounded LLM explanations and action suggestions.
+[![CI](https://img.shields.io/github/actions/workflow/status/abhigyansinhaa/SMERiskAnalysis/ci.yml?branch=main&label=CI)](https://github.com/abhigyansinhaa/SMERiskAnalysis/actions)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+
+Flask + Postgres/MySQL app for SMEs to track income/expenses, forecast cashflow with **LightGBM quantile** models (10th–90th percentile band), run what-if scenarios, and get LLM-backed advice (optional).
+
+## Architecture
+
+```mermaid
+flowchart TB
+  subgraph clients [Clients]
+    Browser[Browser UI]
+    APIClient[API clients]
+  end
+  subgraph app [Flask app]
+    Web[Blueprints: auth, transactions, analytics, advisor]
+    API["/api/v1 JSON + OpenAPI"]
+    ForecastSvc[forecast.py + LightGBM bundle]
+  end
+  subgraph data [Data]
+    DB[(Postgres / MySQL)]
+    Models[models/forecast_bundle.pkl]
+  end
+  Browser --> Web
+  APIClient --> API
+  Web --> DB
+  API --> DB
+  ForecastSvc --> Models
+  ForecastSvc --> DB
+```
 
 ## Features
 
-- **Auth**: Login/Register
-- **Transactions**: CRUD, categories, CSV import
-- **Dashboard**: Monthly totals, burn rate, runway, category breakdown, top vendors, alerts
-- **Forecast**: Pre-trained Ridge (joblib) over time-series features; 7/14/30 day predictions (train once with `scripts/train_forecast_model.py`)
-- **What-If**: Sales ±%, rent change, one-time expense
-- **Advisor**: LLM summary + actions (or template fallback)
+- **Auth:** Register / login (passwords hashed with **Argon2**; legacy Werkzeug hashes upgraded on login).
+- **Transactions:** CRUD, categories, CSV import.
+- **Dashboard:** Monthly totals, burn rate, runway, categories, vendors, alerts.
+- **Forecast:** LightGBM quantile models; sliding-window multi-step rollout; optional Prophet + seasonal-naive baselines in training (`scripts/train_forecast_model.py`).
+- **What-if:** Sales ±%, rent change, one-time expense.
+- **Advisor:** OpenRouter LLM (optional) or template fallback.
+- **API:** `/api/v1` with **Pydantic** request bodies and **Spectree** OpenAPI — Swagger UI at **`/api/v1/docs`** (redirects to `/api/v1/swagger`).
 
-## Setup
+### Why Spectree + Pydantic (not flask-pydantic-spec)
 
-1. Create MySQL database and user (see `scripts/init_db.sql`)
-2. Copy `.env.example` to `.env` and configure
-3. Install: `pip install -r requirements.txt`
-4. Create tables: `python scripts/create_tables.py`
-5. Seed: `python scripts/seed_sample.py`
-6. Train the forecast Ridge artifact (required for `/forecast` and advisor): `python scripts/train_forecast_model.py`  
-   - Writes `models/ridge_forecast.pkl` by default. Override path with `--output` or set `FORECAST_MODEL_PATH` in `.env` if you store the file elsewhere.
-7. Run: `python run.py` or `flask run`
+We use **Spectree** with **Pydantic v2** schemas: stable OpenAPI 3 generation, first-class Flask integration, and `@spec.validate(json=Model)` on POST routes without pulling in a second schema library. Functionally equivalent to the “flask-pydantic-spec” route for validation + docs.
 
-## Demo
+## Quick start (Docker)
 
-- Login: `demo@example.com` / `demo123`
-- Run `python sample_data/build_harborline_dataset.py` then import **`sample_data/harborline_supply_transactions.csv`** (dates align with today; recommended) or `sample_data/sample_transactions.csv` (minimal)
-- See `DEMO_SCRIPT.md` for full demo flow
+```bash
+cp .env.example .env
+# edit SECRET_KEY if needed
+make up
+# DB is migrated on container start; then:
+docker compose exec api python scripts/seed_sample.py
+docker compose exec api python scripts/train_forecast_model.py --fast
+```
 
-## Linting
+App: `http://localhost:5000` — demo: `demo@example.com` / `demo123` (after `seed_sample`).
+
+### Local (without Docker)
+
+1. Python **3.11+**, Postgres or MySQL (or SQLite for quick dev only).
+2. `cp .env.example .env` — set `DATABASE_URL` e.g.  
+   `postgresql+psycopg://user:pass@localhost:5432/cashflow_risk`
+3. `pip install -r requirements-dev.txt`
+4. `alembic upgrade head`
+5. `python scripts/seed_sample.py`
+6. `python scripts/train_forecast_model.py` (or `--fast` for a quick bundle)
+7. `python run.py`
+
+**Synthetic history (~2 years)** for ML demos:
+
+```bash
+python scripts/generate_synthetic_data.py
+```
+
+## API documentation
+
+- **Swagger UI:** `GET /api/v1/docs` → redirect to Spectree UI.
+- **OpenAPI JSON:** served under `/api/v1/` by Spectree (see UI for exact path).
+
+Authentication: **Flask-Login session cookie** (same as the HTML UI). Unauthenticated JSON requests return `401` with `{"error":"Unauthorized"}`.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/v1/me` | Current user `id`, `email` |
+| GET | `/api/v1/dashboard` | KPIs, balance, burn, runway, … |
+| GET | `/api/v1/transactions` | List (`?type=`, `?month=YYYY-MM`) |
+| POST | `/api/v1/transactions` | Create transaction (JSON) |
+| POST | `/api/v1/forecast/run` | `{"horizon_days": 30}` |
+| POST | `/api/v1/forecast/whatif` | Scenario fields |
+| POST | `/api/v1/advisor/summary` | LLM summary + actions |
+
+## ML training & MLflow
+
+```bash
+python scripts/train_forecast_model.py --days 730
+# Artifacts: models/forecast_bundle.pkl, local MLflow under ./mlruns/
+```
+
+`--fast` shortens data and folds for CI. See [MODEL_CARD.md](MODEL_CARD.md) for model scope and limitations.
+
+### Baseline metrics (example)
+
+After training, compare **MAPE** in MLflow: `mape_seasonal_naive_last_fold`, `mape_prophet_last_fold`, and per-fold LGBM metrics. Fill your own numbers in the table below when you run locally.
+
+| Model | Fold MAPE (typ.) |
+|-------|------------------|
+| Seasonal naive (7d) | _run_ |
+| Prophet | _run_ |
+| LightGBM q50 | _run_ |
+
+## Nightly retrain (optional)
+
+- `scripts/retrain_job.py` — trains a candidate bundle and promotes to `models/forecast_bundle.pkl`.
+- Set `ENABLE_SCHEDULER=1` to run APScheduler inside the Flask process (see `app/scheduler.py`).
+
+## Development
 
 ```bash
 pip install -r requirements-dev.txt
 ruff check .
+python -m pytest tests/ -v
+# Targeted coverage (forecast + analytics services):
+python -m pytest tests/ --cov=app/services/forecast --cov=app/services/analytics --cov-report=term-missing
 ```
 
-Config: `pyproject.toml` (Ruff: E, F, I, UP, B).
+See [PERFORMANCE.md](PERFORMANCE.md) for the transaction list N+1 / `joinedload` notes.
 
-## JSON API (`/api/v1`)
+## Tech stack
 
-Versioned JSON endpoints for scripts or SPAs. **Authentication** uses the same **Flask-Login session cookie** as the web UI (log in via the browser, or `POST /login` with a client that stores cookies). Unauthenticated requests return `401` with `{"error":"Unauthorized"}` (no HTML redirect).
+- Flask, SQLAlchemy, Flask-Login, Alembic  
+- Postgres (`psycopg`) or MySQL (`PyMySQL`) via `DATABASE_URL`  
+- LightGBM, scikit-learn, Prophet, MLflow, holidays  
+- Spectree + Pydantic v2, Argon2  
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/api/v1/me` | Current user `id` and `email` |
-| GET | `/api/v1/dashboard` | KPIs, balance, burn, runway, categories, vendors, alerts |
-| GET | `/api/v1/transactions` | List transactions (`?type=`, `?month=YYYY-MM`) |
-| POST | `/api/v1/transactions` | Create transaction (JSON: `date`, `amount`, `type`, optional `category_id`, `merchant`, `notes`) |
-| POST | `/api/v1/forecast/run` | Body: `{"horizon_days": 30}` |
-| POST | `/api/v1/forecast/whatif` | Body: `sales_pct_change`, `rent_change`, `one_time_expense` |
-| POST | `/api/v1/advisor/summary` | LLM summary + actions |
+## CV talking points
 
-Legacy JSON routes (`/forecast/run`, `/advisor/summary`, etc.) remain for the existing HTML pages.
+- Containerized **Flask + Postgres** with **Docker Compose**, **Alembic** migrations, **GitHub Actions** (Ruff + pytest + fast training step).
+- **REST API** documented with **OpenAPI/Swagger**, **Pydantic** validation on JSON bodies.
+- **LightGBM quantile** forecasting with **walk-forward** evaluation, **Prophet** / **seasonal-naive** baselines, **MLflow** experiment tracking, optional **scheduled retrain**.
+- **Performance:** Documented SQL query comparison for eager-loaded categories vs lazy.
 
-```bash
-python -m unittest tests.test_api_v1 -v
-```
+## Legacy
 
-## Tech Stack
-
-- Flask, SQLAlchemy, Flask-Login
-- MySQL (PyMySQL)
-- scikit-learn (Ridge regression)
-- OpenRouter API (optional, for LLM advisor; set `OPENROUTER_API_KEY` in `.env`, and optionally `OPENROUTER_MODEL`, e.g. `openai/gpt-4o-mini`)
-- UI: Outfit + Fraunces (Google Fonts), responsive layout
+- `scripts/init_db.sql` — reference only; prefer **Alembic**.
+- `scripts/create_tables.py` — prints deprecation; use `alembic upgrade head`.

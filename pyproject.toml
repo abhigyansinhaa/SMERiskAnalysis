@@ -1,14 +1,14 @@
 [project]
 name = "cashflow-risk-advisor"
 version = "0.1.0"
-description = "SME Cashflow & Risk Advisor (Flask + MySQL)"
+description = "SME Cashflow & Risk Advisor (Flask + Postgres/MySQL + LightGBM)"
 readme = "README.md"
 requires-python = ">=3.10"
 
 [tool.ruff]
 line-length = 100
 target-version = "py310"
-src = ["app", "scripts", "sample_data", "run.py", "config.py"]
+src = ["app", "scripts", "tests", "migrations", "sample_data", "run.py", "config.py"]
 
 [tool.ruff.lint]
 select = [
